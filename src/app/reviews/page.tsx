@@ -1,6 +1,17 @@
+import Link from "next/link";
+
 import { Card, Chip, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
-import { toJalaliLong } from "@/lib/dates";
+import { ReviewsDashboard } from "@/components/reviews-dashboard";
+import type { ReviewRow } from "@/components/reviews-table";
+import { jalaliParts, toJalaliLong } from "@/lib/dates";
+import { analyzeReviews } from "@/lib/jajiga/analytics";
 import { getDataset } from "@/lib/jajiga/dataset";
+import {
+  OWNER_ROOM_ID,
+  listReviewRoomIds,
+  loadReviews,
+} from "@/lib/jajiga/load";
+import { analyzeReviewDashboard } from "@/lib/jajiga/reviewAnalytics";
 import { formatNumber, formatPercent } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +36,21 @@ type Sub = {
   value: number | null;
 };
 
-export default function ReviewsPage() {
+export default async function ReviewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ room?: string }>;
+}) {
+  const { room } = await searchParams;
   const data = getDataset();
-  const reviews = data.reviews;
+  const available = listReviewRoomIds();
+  const requested = Number(room);
+  const roomId =
+    Number.isFinite(requested) && available.includes(requested) ? requested : OWNER_ROOM_ID;
+  const isOwner = roomId === OWNER_ROOM_ID;
 
-  if (data.isEmpty || !reviews) {
+  const roomReviews = loadReviews(roomId);
+  if (!roomReviews.length) {
     return (
       <Notice tone="warning" title="نظری ثبت نشده">
         فایل نظرات این اقامتگاه در <code className="font-mono">data/reviews/</code> پیدا نشد.
@@ -37,35 +58,87 @@ export default function ReviewsPage() {
     );
   }
 
-  const { owner } = data;
-  const cardCount = owner.reviewsCount;
+  const reviews = analyzeReviews(roomReviews);
+  const insights = analyzeReviewDashboard(roomReviews, data.today);
+  const cardCount = isOwner ? data.owner.reviewsCount : null;
   const apiCount = reviews.count;
-  const missing = Math.max(cardCount - apiCount, 0);
+  const missing = cardCount !== null ? Math.max(cardCount - apiCount, 0) : 0;
 
-  const subRatings = SUB_RATING_LABELS.map((item) => ({
-    ...item,
-    value: owner.subRatings[item.key],
-  })).filter((item): item is { key: keyof Sub; label: string; value: number } => item.value !== null);
+  const roomTitle =
+    roomId === OWNER_ROOM_ID
+      ? data.owner.title
+      : data.rooms.find((r) => r.id === roomId)?.title ?? `اقامتگاه ${roomId}`;
+
+  const rows: ReviewRow[] = roomReviews.map((review) => {
+    const dateISO = review.created_at.slice(0, 10);
+    return {
+      id: review.id,
+      dateISO,
+      jDisplay: toJalaliLong(dateISO),
+      jy: jalaliParts(dateISO).year,
+      user: review.user?.name ?? "مهمان",
+      rating: typeof review.rating === "number" ? review.rating : 0,
+      content: review.content ?? "",
+      reply: Boolean(review.host_reply?.content),
+      replyTxt: review.host_reply?.content ?? "",
+      replyDateISO: review.host_reply?.created_at?.slice(0, 10) ?? "",
+    };
+  });
+
+  const subRatings = isOwner
+    ? SUB_RATING_LABELS.map((item) => ({
+        ...item,
+        value: data.owner.subRatings[item.key],
+      })).filter(
+        (item): item is { key: keyof Sub; label: string; value: number } => item.value !== null,
+      )
+    : [];
 
   const weakest = [...subRatings].sort((a, b) => a.value - b.value)[0] ?? null;
   const maxBucket = Math.max(...reviews.distribution.map((d) => d.count), 1);
+  const ownerHint = isOwner ? "در میان رقبای بابلکنار" : null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="تحلیل نظرات مهمانان"
-        description={`${formatNumber(apiCount)} نظر ثبت‌شده برای «${owner.title}» با میانگین ${formatNumber(
+        description={`${formatNumber(apiCount)} نظر ثبت‌شده برای «${roomTitle}» با میانگین ${formatNumber(
           reviews.averageRating ?? 0,
           2,
         )}.`}
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] text-slate-500">اقامتگاه:</span>
+        {available.map((id) => {
+          const active = id === roomId;
+          const label =
+            id === OWNER_ROOM_ID
+              ? data.owner.title
+              : data.rooms.find((r) => r.id === id)?.title ?? `اقامتگاه ${id}`;
+          return (
+            <Link
+              key={id}
+              href={`/reviews?room=${id}`}
+              className={`rounded-full border px-3 py-1 text-[11.5px] transition-colors ${
+                active
+                  ? "border-brand-400/70 bg-brand-400/20 font-bold text-brand-200"
+                  : "border-white/10 bg-white/4 text-slate-400 hover:border-brand-400/40"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+
       <Notice>
         امتیازی که جاجیگا روی آگهی نشان می‌دهد میانگین <strong>۱۲ ماه اخیر</strong> است، در حالی که
         میانگین این صفحه از همه نظرهای دریافت‌شده محاسبه می‌شود؛ پس اختلاف جزئی طبیعی است.
-        {missing > 0 ? (
+        {cardCount !== null && missing > 0 ? (
           <>
-            {" "}همچنین کارت آگهی {formatNumber(cardCount)} نظر اعلام می‌کند ولی رابط برنامه‌نویسی{" "}
+            {" "}
+            همچنین کارت آگهی {formatNumber(cardCount)} نظر اعلام می‌کند ولی رابط برنامه‌نویسی{" "}
             {formatNumber(apiCount)} نظر برگرداند؛ {formatNumber(missing)} نظر در دسترس نیست.
           </>
         ) : null}
@@ -75,26 +148,26 @@ export default function ReviewsPage() {
         <KpiCard
           label="میانگین امتیاز"
           value={formatNumber(reviews.averageRating ?? 0, 2)}
-          hint={`صدک ${formatNumber(data.market.ratingPercentile)} در میان رقبا`}
+          hint={isOwner ? `صدک ${formatNumber(data.market.ratingPercentile)} ${ownerHint}` : "از همه نظرهای دریافت‌شده"}
           tone="positive"
+        />
+        <KpiCard
+          label="میانگین ۱ سال اخیر"
+          value={formatNumber(insights.lastYear?.average ?? 0, 2)}
+          hint={`${formatNumber(insights.lastYear?.count ?? 0)} نظر در این بازه — مبنای نمایش سایت`}
+          tone={insights.lastYear && insights.lastYear.average !== null ? "default" : "warning"}
         />
         <KpiCard
           label="تعداد نظر"
           value={formatNumber(apiCount)}
-          hint={`میانه رقبا ${formatNumber(data.market.medianReviews)} نظر`}
-          tone={apiCount < data.market.medianReviews ? "warning" : "default"}
+          hint={isOwner ? `میانه رقبا ${formatNumber(data.market.medianReviews)} نظر` : `کارت سایت ${cardCount ?? "—"}`}
+          tone={isOwner && apiCount < data.market.medianReviews ? "warning" : "default"}
         />
         <KpiCard
           label="نرخ پاسخ‌گویی"
           value={formatPercent(reviews.replyRate)}
           hint="پاسخ میزبان به نظر مهمان"
           tone={reviews.replyRate >= 0.8 ? "positive" : "warning"}
-        />
-        <KpiCard
-          label="ضعیف‌ترین زیرمعیار"
-          value={weakest ? formatNumber(weakest.value, 1) : "—"}
-          hint={weakest ? weakest.label : "—"}
-          tone={weakest && weakest.value < 4.9 ? "warning" : "default"}
         />
       </div>
 
@@ -118,41 +191,70 @@ export default function ReviewsPage() {
               </li>
             ))}
           </ul>
-          {reviews.count > reviews.ratedCount ? (
-            <p className="mt-3 text-[10px] text-slate-500">
-              {formatNumber(reviews.count - reviews.ratedCount)} نظر بدون امتیاز عددی ثبت شده است.
-            </p>
-          ) : null}
+          <div className="mt-3 flex flex-wrap gap-4 text-[11.5px] text-slate-500">
+            <span>
+              امتیاز کامل: <span className="num font-bold text-emerald-300">{formatNumber(insights.fiveStar)}</span>
+            </span>
+            <span>
+              زیر ۵: <span className="num font-bold text-rose-300">{formatNumber(insights.belowFive)}</span>
+            </span>
+            <span>
+              کاربر یکتا: <span className="num font-bold text-slate-200">{formatNumber(insights.uniqueUsers)}</span>
+            </span>
+            {reviews.count > reviews.ratedCount ? (
+              <span>{formatNumber(reviews.count - reviews.ratedCount)} نظر بدون امتیاز عددی ثبت شده است.</span>
+            ) : null}
+          </div>
         </Card>
 
-        <Card title="ریز امتیازها" subtitle="پایین‌ترین ضلع، سریع‌ترین مسیر بهبود امتیاز کلی است.">
-          <ul className="space-y-3">
-            {subRatings.map((item) => (
-              <li key={item.key}>
-                <div className="mb-1 flex items-baseline justify-between">
-                  <span className="text-[12px] text-slate-200">
-                    {item.label}
-                    {weakest && item.key === weakest.key ? (
-                      <Chip tone="warning" className="mr-1.5">
-                        کمترین
-                      </Chip>
-                    ) : null}
-                  </span>
-                  <span className="num text-[12px] font-bold text-slate-100">
-                    {formatNumber(item.value, 1)}
-                  </span>
-                </div>
-                <Meter
-                  value={item.value / 5}
-                  tone={weakest && item.key === weakest.key ? "warning" : "positive"}
-                />
-              </li>
-            ))}
-          </ul>
-        </Card>
+        {isOwner ? (
+          <Card title="ریز امتیازها" subtitle="پایین‌ترین ضلع، سریع‌ترین مسیر بهبود امتیاز کلی است.">
+            <ul className="space-y-3">
+              {subRatings.map((item) => (
+                <li key={item.key}>
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <span className="text-[12px] text-slate-200">
+                      {item.label}
+                      {weakest && item.key === weakest.key ? (
+                        <Chip tone="warning" className="mr-1.5">
+                          کمترین
+                        </Chip>
+                      ) : null}
+                    </span>
+                    <span className="num text-[12px] font-bold text-slate-100">
+                      {formatNumber(item.value, 1)}
+                    </span>
+                  </div>
+                  <Meter
+                    value={item.value / 5}
+                    tone={weakest && item.key === weakest.key ? "warning" : "positive"}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : (
+          <Card title="کاربران تکرارکننده" subtitle="مهمان‌هایی که بیش از یک بار آمده‌اند — نشانهٔ وفاداری">
+            {insights.repeatUsers.length ? (
+              <ul className="space-y-2">
+                {insights.repeatUsers.map((user) => (
+                  <li key={user.name} className="flex items-center justify-between text-[12.5px]">
+                    <span className="text-slate-200">{user.name}</span>
+                    <span className="text-[11.5px] text-slate-500">
+                      <span className="num font-bold text-slate-200">{formatNumber(user.count)}</span> نظر · سال‌ها:{" "}
+                      <span className="num">{user.years.join("، ")}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[12px] text-slate-500">هنوز کاربر تکرارکننده‌ای ثبت نشده است.</p>
+            )}
+          </Card>
+        )}
       </div>
 
-      {data.reviewTopics.length ? (
+      {isOwner && data.reviewTopics.length ? (
         <Card
           title="موضوع‌های تکرارشونده در نظرها"
           subtitle="بر پایه کلیدواژه‌های پرتکرار فارسی در متن نظرها."
@@ -190,42 +292,7 @@ export default function ReviewsPage() {
         </Card>
       ) : null}
 
-      <Card title="آخرین نظرها">
-        <ul className="space-y-3">
-          {reviews.latest.map((review) => (
-            <li key={review.id} className="rounded-xl bg-white/4 p-3.5 ring-1 ring-white/6">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[12px] font-bold text-slate-100">
-                  {review.user?.name ?? "مهمان"}
-                </span>
-                <div className="flex items-center gap-2">
-                  {typeof review.rating === "number" ? (
-                    <Chip tone={review.rating >= 4.5 ? "positive" : "warning"}>
-                      {formatNumber(review.rating, 1)} ★
-                    </Chip>
-                  ) : null}
-                  <span className="num text-[10px] text-slate-500">
-                    {toJalaliLong(review.created_at.slice(0, 10))}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-[12px] leading-relaxed text-slate-300">{review.content}</p>
-
-              {review.host_reply?.content ? (
-                <div className="mt-2.5 rounded-lg border-r-2 border-brand-400/40 bg-white/3 p-2.5">
-                  <p className="mb-1 text-[10px] font-bold text-brand-300">پاسخ شما</p>
-                  <p className="text-[11px] leading-relaxed text-slate-400">
-                    {review.host_reply.content}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-2 text-[10px] text-amber-300/80">هنوز به این نظر پاسخ نداده‌اید.</p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <ReviewsDashboard rows={rows} total={apiCount} analysis={insights} />
     </div>
   );
 }

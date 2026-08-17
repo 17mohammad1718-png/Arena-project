@@ -519,3 +519,75 @@ export function WeekdayChart({
     </ResponsiveContainer>
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/*                        Supply trend (phase 3 — N3)                         */
+/* -------------------------------------------------------------------------- */
+
+export interface SupplyChartPoint {
+  date: string;
+  label: string;
+  babolkenar: number;
+  cottages: number;
+}
+
+export function SupplyTrendChart({ data }: { data: SupplyChartPoint[] }) {
+  const values = data.flatMap((d) => [d.babolkenar, d.cottages]);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = Math.max(2, Math.round((max - min) * 0.3));
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <defs>
+          <linearGradient id="supplyFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.25} />
+            <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey="label" {...AXIS} tickLine={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+        <YAxis
+          {...AXIS}
+          tickLine={false}
+          domain={[min - pad, max + pad]}
+          tick={{ fontSize: 10, fill: "#94a3b8" }}
+          orientation="right"
+          tickFormatter={(v: number) => formatNumber(v)}
+          width={44}
+        />
+        <Tooltip
+          content={({ active, payload, label }) =>
+            active && payload?.length ? (
+              <TooltipBox
+                label={String(label)}
+                rows={[
+                  {
+                    name: "کل آگهی‌های بابلکنار",
+                    value: formatNumber(Number(payload.find((p) => p.dataKey === "babolkenar")?.value ?? 0)),
+                    color: "#22d3ee",
+                  },
+                  {
+                    name: "کلبه‌ها",
+                    value: formatNumber(Number(payload.find((p) => p.dataKey === "cottages")?.value ?? 0)),
+                    color: "#fbbf24",
+                  },
+                ]}
+              />
+            ) : null
+          }
+        />
+        <Area
+          type="monotone"
+          dataKey="babolkenar"
+          stroke="#22d3ee"
+          strokeWidth={2}
+          fill="url(#supplyFill)"
+          dot={{ r: 2, fill: "#22d3ee" }}
+        />
+        <Line type="monotone" dataKey="cottages" stroke="#fbbf24" strokeWidth={2} dot={{ r: 2, fill: "#fbbf24" }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}

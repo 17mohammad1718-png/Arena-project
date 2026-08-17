@@ -10,12 +10,21 @@ import {
   IconStar,
   IconTrend,
 } from "@/components/icons";
+import path from "node:path";
+
+import { AlertsPanel } from "@/components/alerts-panel";
 import { Card, Chip, DefinitionList, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
+import { buildAlerts } from "@/lib/alerts";
 import { jalaliMonthEnd, jalaliMonthStart, jalaliParts, toJalaliLong, toJalaliMonthLabel } from "@/lib/dates";
 import { getDb } from "@/lib/db";
+import { listAlerts, logAlert } from "@/lib/db/market";
 import { listExpenses, reservationsInRange } from "@/lib/db/repo";
 import { computeProfit, mergeRevenueNights } from "@/lib/finance";
 import { getDataset } from "@/lib/jajiga/dataset";
+import { OWNER_ROOM_ID } from "@/lib/jajiga/load";
+import { buildCalendarMonth } from "@/lib/jajiga/pricing";
+import { marketOccupancyTrend, priceChangesBetweenCaptures } from "@/lib/market-trends";
+import { computeSupplyTrend, loadSupplySnapshots } from "@/lib/supply";
 import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +60,49 @@ export default function OverviewPage() {
   );
   const monthLabel = toJalaliMonthLabel(monthFrom);
 
+  // N4: time-aware alerts. Rules run on today's data; alert_log dedups per
+  // day and remembers dismissals.
+  const nextMonth = jalaliParts(data.today).month === 12
+    ? { year: currentParts.year + 1, month: 1 }
+    : { year: currentParts.year, month: currentParts.month + 1 };
+  const alertDays = [
+    ...buildCalendarMonth(
+      data.calendar, data.marketNights, { rating: owner.rating },
+      currentParts.year, currentParts.month, data.today,
+    ),
+    ...buildCalendarMonth(
+      data.calendar, data.marketNights, { rating: owner.rating },
+      nextMonth.year, nextMonth.month, data.today,
+    ),
+  ];
+  const candidateAlerts = buildAlerts({
+    today: data.today,
+    calendarDays: alertDays,
+    ownerOccupancy: data.market.ownerOccupancy,
+    peerMedianOccupancy: data.market.medianOccupancy,
+    peerCount: data.market.sampleSize,
+    priceChanges: priceChangesBetweenCaptures(db),
+    competitorTitles: new Map(data.competitors.map((room) => [room.id, room.title])),
+    supplyTrend: computeSupplyTrend(
+      loadSupplySnapshots(path.join(process.cwd(), "data")).snapshots,
+    ),
+    occupancyTrend: marketOccupancyTrend(db, OWNER_ROOM_ID),
+  });
+
+  // Log today's firings (no-op when already logged), then show only alerts
+  // that are recorded for today and not dismissed.
+  for (const alert of candidateAlerts) {
+    logAlert(db, alert.ruleKey, data.today, alert.payload);
+  }
+  const todayLog = listAlerts(db, data.today);
+  const activeKeys = new Set(
+    todayLog.filter((entry) => !entry.dismissed).map((entry) => entry.ruleKey),
+  );
+  const alerts = candidateAlerts.filter((alert) => activeKeys.has(alert.ruleKey));
+  const alertIds = Object.fromEntries(
+    todayLog.map((entry) => [entry.ruleKey, entry.id]),
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -69,6 +121,8 @@ export default function OverviewPage() {
           </a>
         }
       />
+
+      <AlertsPanel alerts={alerts} ids={alertIds} />
 
       {data.ownerRate && data.ownerRate.weekday !== owner.basePrice ? (
         <Notice tone="warning" title="نرخ کارت آگهی با نرخ تقویم شما یکی نیست">

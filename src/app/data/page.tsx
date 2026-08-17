@@ -1,5 +1,8 @@
+import path from "node:path";
+
 import { Card, Chip, DefinitionList, Notice, PageHeader } from "@/components/ui";
 import { toJalaliLong } from "@/lib/dates";
+import { computeFreshness } from "@/lib/freshness";
 import { getDataset } from "@/lib/jajiga/dataset";
 import { formatNumber } from "@/lib/metrics";
 
@@ -51,8 +54,17 @@ const FILE_GUIDE: {
   },
 ];
 
+const FRESHNESS_BADGE = {
+  fresh: { label: "تازه", className: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" },
+  aging: { label: "در حال کهنه‌شدن", className: "bg-amber-500/15 text-amber-300 ring-amber-500/30" },
+  stale: { label: "کهنه", className: "bg-rose-500/15 text-rose-300 ring-rose-500/30" },
+  unknown: { label: "نامشخص", className: "bg-white/8 text-slate-400 ring-white/15" },
+} as const;
+
 export default function DataPage() {
   const data = getDataset();
+  const freshness = computeFreshness(path.join(process.cwd(), "data"), data.today);
+  const staleGroups = freshness.filter((group) => group.status === "stale");
 
   return (
     <div className="space-y-6">
@@ -73,6 +85,54 @@ export default function DataPage() {
           جداگانه میزبان انجام می‌شود و این برنامه فقط فایل‌های موجود را می‌خواند.
         </Notice>
       )}
+
+      {staleGroups.length ? (
+        <Notice tone="warning" title="بخشی از داده کهنه شده است">
+          {staleGroups.map((group) => group.title).join("، ")} از آستانه تازگی گذشته‌اند. برای رفرش،
+          راهنمای <code className="font-mono">docs/refresh-runbook.md</code> را دنبال کنید و
+          یادتان نرود بعد از رفرش <code className="font-mono">npm run archive</code> بزنید تا
+          تاریخچه حفظ شود. طبق قانون داده، خودتان از جاجیگا اسکرپ نکنید — رفرش فقط از طریق
+          پایپ‌لاین موجود.
+        </Notice>
+      ) : null}
+
+      <Card
+        title="تازگی داده"
+        subtitle="سن هر گروه از خودِ محتوای دیتاست (تاریخ fetch یا نام فایل) خوانده می‌شود، نه صرفاً تاریخ فایل."
+      >
+        <div className="space-y-2">
+          {freshness.map((group) => {
+            const badge = FRESHNESS_BADGE[group.status];
+            return (
+              <div
+                key={group.key}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/4 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-[12px] font-bold text-slate-200">{group.title}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{group.detail}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="num text-[11px] text-slate-400">
+                    {group.newestDay
+                      ? `${toJalaliLong(group.newestDay)} — ${formatNumber(group.ageDays ?? 0)} روز پیش`
+                      : "—"}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ${badge.className}`}
+                  >
+                    {badge.label}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-3 rounded-lg bg-white/4 p-3 text-[11px] leading-relaxed text-slate-400">
+          آستانه هشدار: رادار و عرضه ۷ روز، درآمد ۱۰ روز، مشخصات ۱۴ روز، نظرات ۳۰ روز. روش رفرش در{" "}
+          <code className="font-mono">docs/refresh-runbook.md</code> مستند است.
+        </p>
+      </Card>
 
       <Card title="وضعیت بارگذاری">
         <DefinitionList

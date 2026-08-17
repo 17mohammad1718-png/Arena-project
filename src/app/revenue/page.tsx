@@ -1,6 +1,10 @@
 import { Card, Chip, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
+import { toJalali } from "@/lib/dates";
+import { getDb } from "@/lib/db";
+import { listRealizedCaptures } from "@/lib/db/archive";
 import { getDataset } from "@/lib/jajiga/dataset";
 import type { RevenueLeaderboardRow } from "@/lib/jajiga/analytics";
+import { OWNER_ROOM_ID } from "@/lib/jajiga/load";
 import { formatNumber, formatPercent, formatToman, median } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +13,7 @@ export const metadata = { title: "درآمد منطقه" };
 
 export default function RevenuePage() {
   const data = getDataset();
+  const captures = listRealizedCaptures(getDb(), OWNER_ROOM_ID);
 
   if (data.isEmpty || !data.leaderboard.length) {
     return (
@@ -66,6 +71,50 @@ export default function RevenuePage() {
           </>
         )}
       </Notice>
+
+      {/* ------------------------------ Trend history ---------------------------- */}
+      {captures.length >= 2 ? (
+        <Card
+          title="روند درآمد بین برش‌های آرشیوشده"
+          subtitle="هر ردیف یک بازه محقق‌شده است که با npm run archive ذخیره شده."
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[460px] text-right text-[12px]">
+              <thead>
+                <tr className="border-b border-white/8 text-[11px] text-slate-500">
+                  <th className="py-2 font-semibold">بازه</th>
+                  <th className="py-2 font-semibold">اقامتگاه‌ها</th>
+                  <th className="py-2 font-semibold">درآمد خالص کل منطقه</th>
+                  <th className="py-2 font-semibold">درآمد خالص شما</th>
+                </tr>
+              </thead>
+              <tbody>
+                {captures.map((capture) => (
+                  <tr
+                    key={`${capture.rangeStart}-${capture.rangeEnd}`}
+                    className="border-b border-white/5 last:border-0"
+                  >
+                    <td className="num py-2 text-slate-300">
+                      {toJalali(capture.rangeStart)} تا {toJalali(capture.rangeEnd)}
+                    </td>
+                    <td className="num py-2 text-slate-400">{formatNumber(capture.rooms)}</td>
+                    <td className="num py-2 text-slate-200">{formatToman(capture.totalNet)}</td>
+                    <td className="num py-2 font-bold text-brand-300">
+                      {capture.ownerNet !== null ? formatToman(capture.ownerNet) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : captures.length === 1 ? (
+        <Notice>
+          یک برش درآمد در آرشیو ذخیره شده است. بعد از رفرش بعدی دیتاست، دوباره{" "}
+          <code className="font-mono">npm run archive</code> را اجرا کنید تا روند درآمد اینجا ساخته
+          شود.
+        </Notice>
+      ) : null}
 
       {/* --------------------------------- KPIs --------------------------------- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -1,11 +1,22 @@
+import path from "node:path";
+
 import Link from "next/link";
 
-import { PositioningChart, PriceComparisonChart, RatingRadar } from "@/components/charts";
+import {
+  PositioningChart,
+  PriceComparisonChart,
+  RatingRadar,
+  SupplyTrendChart,
+} from "@/components/charts";
 import { Card, Chip, DefinitionList, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
+import { toJalali, toJalaliLong } from "@/lib/dates";
 import { getDb } from "@/lib/db";
 import { listSets } from "@/lib/db/market";
 import { computeMarketPosition } from "@/lib/jajiga/analytics";
 import { getDataset } from "@/lib/jajiga/dataset";
+import { OWNER_ROOM_ID } from "@/lib/jajiga/load";
+import { marketOccupancyTrend, priceChangesBetweenCaptures } from "@/lib/market-trends";
+import { computeSupplyTrend, loadSupplySnapshots } from "@/lib/supply";
 import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +39,7 @@ export default async function MarketPage({
   // N1: the benchmark reference group is switchable — default automatic peers,
   // or any saved competitor set picked via ?set=<id>.
   const sets = listSets(getDb());
+  // (db reused below for trend queries)
   const activeSetId = Number(params.set) || null;
   const activeSet = activeSetId ? (sets.find((s) => s.id === activeSetId) ?? null) : null;
   const setRooms = activeSet
@@ -37,6 +49,16 @@ export default async function MarketPage({
   const peers = setRooms?.length ? setRooms : data.peers;
   const market =
     setRooms?.length ? computeMarketPosition(owner, setRooms) : data.market;
+
+  // N3: market direction — supply snapshots + archived occupancy captures.
+  const supply = computeSupplyTrend(
+    loadSupplySnapshots(path.join(process.cwd(), "data")).snapshots,
+  );
+  const db = getDb();
+  const occupancyTrend = marketOccupancyTrend(db, OWNER_ROOM_ID);
+  const priceMoves = priceChangesBetweenCaptures(db).filter(
+    (change) => Math.abs(change.changePercent) >= 0.03,
+  );
 
   const priceGap = market.medianPrice
     ? (owner.basePrice - market.medianPrice) / market.medianPrice
@@ -296,6 +318,147 @@ export default async function MarketPage({
           شب لزوماً یعنی فروش نیست؛ ممکن است میزبان آن را دستی بسته باشد.
         </p>
       </Card>
+
+      {/* ------------------------- Market direction (N3) ------------------------- */}
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <Card
+          title="روند عرضه بابلکنار"
+          subtitle={
+            supply.first && supply.last
+              ? `از ${toJalaliLong(supply.first.date)} تا ${toJalaliLong(supply.last.date)} — ${formatNumber(
+                  supply.points.length,
+                )} اسنپ‌شات روزانه`
+              : "اسنپ‌شات عرضه در دسترس نیست"
+          }
+        >
+          {supply.points.length >= 2 ? (
+            <>
+              <SupplyTrendChart
+                data={supply.points.map((point) => ({
+                  ...point,
+                  label: toJalali(point.date).slice(5),
+                }))}
+              />
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg bg-white/4 p-3 text-[11px]">
+                  <p className="text-slate-400">تغییر کل آگهی‌ها</p>
+                  <p
+                    className={`num mt-1 text-[14px] font-extrabold ${
+                      supply.babolkenarDelta > 0
+                        ? "text-amber-300"
+                        : supply.babolkenarDelta < 0
+                          ? "text-emerald-300"
+                          : "text-slate-200"
+                    }`}
+                  >
+                    {supply.babolkenarDelta > 0 ? "+" : ""}
+                    {formatNumber(supply.babolkenarDelta)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/4 p-3 text-[11px]">
+                  <p className="text-slate-400">کلبه‌های جدید در پنجره</p>
+                  <p className="num mt-1 text-[14px] font-extrabold text-slate-200">
+                    {formatNumber(supply.newRoomIds.length)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/4 p-3 text-[11px]">
+                  <p className="text-slate-400">خارج‌شده از فهرست</p>
+                  <p className="num mt-1 text-[14px] font-extrabold text-slate-200">
+                    {formatNumber(supply.goneRoomIds.length)}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 rounded-lg bg-white/4 p-3 text-[11px] leading-relaxed text-slate-400">
+                عرضه بیشتر یعنی رقابت شدیدتر بر سر همان مهمان‌ها. «خارج‌شده» می‌تواند حذف آگهی یا
+                غیرفعال‌شدن موقت باشد؛ این عدد از حضور شناسه اتاق در اسنپ‌شات استخراج می‌شود.
+              </p>
+            </>
+          ) : (
+            <p className="py-8 text-center text-[12px] text-slate-500">
+              حداقل دو اسنپ‌شات عرضه لازم است.
+            </p>
+          )}
+        </Card>
+
+        <Card
+          title="جهت بازار بین برش‌های آرشیو"
+          subtitle="از داده‌های npm run archive — هر برش یک مشاهده کامل تقویم رقباست."
+        >
+          {occupancyTrend.length >= 2 ? (
+            <div className="space-y-2">
+              {occupancyTrend.map((point, index) => {
+                const prev = index > 0 ? occupancyTrend[index - 1] : null;
+                const delta = prev ? point.avgOccupancy - prev.avgOccupancy : null;
+                return (
+                  <div
+                    key={point.capturedAt}
+                    className="flex items-center justify-between rounded-lg bg-white/4 px-3 py-2 text-[12px]"
+                  >
+                    <span className="num text-slate-300">{toJalali(point.capturedAt)}</span>
+                    <span className="num text-slate-400">
+                      {formatNumber(point.rooms)} اتاق
+                    </span>
+                    <span className="num font-bold text-slate-100">
+                      {formatPercent(point.avgOccupancy)}
+                      {delta !== null ? (
+                        <span
+                          className={`mr-1.5 text-[10px] ${
+                            delta > 0 ? "text-emerald-300" : delta < 0 ? "text-rose-300" : "text-slate-500"
+                          }`}
+                        >
+                          {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}
+                          {formatPercent(Math.abs(delta))}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                );
+              })}
+              <p className="rounded-lg bg-white/4 p-3 text-[11px] leading-relaxed text-slate-400">
+                بالارفتن این عدد یعنی تقویم منطقه در حال پر شدن است — فرصت برای نرخ بالاتر در
+                شب‌های باز شما.
+              </p>
+            </div>
+          ) : (
+            <p className="py-6 text-center text-[12px] leading-relaxed text-slate-500">
+              یک برش آرشیو ذخیره شده است. بعد از رفرش بعدی دیتاست،{" "}
+              <code className="font-mono">npm run archive</code> را اجرا کنید تا جهت اشغال بازار
+              اینجا ساخته شود.
+            </p>
+          )}
+
+          {priceMoves.length ? (
+            <div className="mt-4 border-t border-white/8 pt-3">
+              <p className="mb-2 text-[11px] font-bold text-slate-300">
+                تغییرات قیمت از برش قبل (±۳٪ به بالا)
+              </p>
+              <ul className="space-y-1.5">
+                {priceMoves.slice(0, 8).map((change) => {
+                  const room = data.competitors.find((candidate) => candidate.id === change.roomId);
+                  return (
+                    <li key={change.roomId} className="flex items-center justify-between text-[11px]">
+                      <Link
+                        href={`/competitors/${change.roomId}`}
+                        className="max-w-[200px] truncate text-slate-300 transition hover:text-brand-300"
+                      >
+                        {room?.title ?? `اتاق ${formatNumber(change.roomId)}`}
+                      </Link>
+                      <span
+                        className={`num font-bold ${
+                          change.changePercent > 0 ? "text-amber-300" : "text-emerald-300"
+                        }`}
+                      >
+                        {change.changePercent > 0 ? "▲" : "▼"}
+                        {formatPercent(Math.abs(change.changePercent))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+        </Card>
+      </div>
     </div>
   );
 }

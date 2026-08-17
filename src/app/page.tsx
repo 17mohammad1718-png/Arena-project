@@ -11,7 +11,10 @@ import {
   IconTrend,
 } from "@/components/icons";
 import { Card, Chip, DefinitionList, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
-import { toJalaliLong } from "@/lib/dates";
+import { jalaliMonthEnd, jalaliMonthStart, jalaliParts, toJalaliLong, toJalaliMonthLabel } from "@/lib/dates";
+import { getDb } from "@/lib/db";
+import { listExpenses, reservationsInRange } from "@/lib/db/repo";
+import { computeProfit, mergeRevenueNights } from "@/lib/finance";
 import { getDataset } from "@/lib/jajiga/dataset";
 import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
@@ -31,6 +34,22 @@ export default function OverviewPage() {
   }
 
   const ownerRealized = data.realizedLeaderboard?.find((row) => row.isOwn);
+
+  // Real profit for the current Jalali month: market calendar + host records.
+  const currentParts = jalaliParts(data.today);
+  const monthFrom = jalaliMonthStart(currentParts.year, currentParts.month);
+  const monthTo = jalaliMonthEnd(currentParts.year, currentParts.month);
+  const db = getDb();
+  const monthProfit = computeProfit(
+    mergeRevenueNights(
+      data.calendar,
+      reservationsInRange(db, monthFrom, monthTo),
+      monthFrom,
+      monthTo,
+    ),
+    listExpenses(db, monthFrom, monthTo),
+  );
+  const monthLabel = toJalaliMonthLabel(monthFrom);
 
   return (
     <div className="space-y-6">
@@ -126,6 +145,37 @@ export default function OverviewPage() {
           hint={kpis.revpan > 0 ? `RevPAN ${formatToman(kpis.revpan)}` : "هنوز رزروی ثبت نشده"}
         />
       </div>
+
+      {/* ------------------------------ Real profit ----------------------------- */}
+      <Card
+        title={`سود واقعی ${monthLabel}`}
+        subtitle="درآمد − کمیسیون ۱۲٪ − هزینه‌های ثبت‌شده شما"
+        action={
+          <Link
+            href="/finance"
+            className="no-print text-[11px] font-semibold text-brand-300 hover:text-brand-200"
+          >
+            ثبت هزینه و جزئیات ←
+          </Link>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniStat label="درآمد ناخالص ماه" value={formatToman(monthProfit.grossRevenue)} />
+          <MiniStat label="کمیسیون جاجیگا" value={formatToman(monthProfit.commission)} />
+          <MiniStat label="هزینه‌های ثبت‌شده" value={formatToman(monthProfit.totalExpenses)} />
+          <MiniStat
+            label="سود واقعی"
+            value={formatToman(monthProfit.realProfit)}
+            tone={monthProfit.realProfit >= 0 ? "positive" : undefined}
+          />
+        </div>
+        {monthProfit.totalExpenses === 0 ? (
+          <p className="mt-3 rounded-lg bg-white/4 p-3 text-[11px] leading-relaxed text-slate-400">
+            هنوز هزینه‌ای برای این ماه ثبت نکرده‌اید؛ تا وقتی هزینه‌ها ثبت نشوند، «سود واقعی» همان
+            درآمد خالص است. از صفحه «مالی من» شروع کنید.
+          </p>
+        ) : null}
+      </Card>
 
       {/* ------------------------------- Realized ------------------------------ */}
       {ownerRealized ? (

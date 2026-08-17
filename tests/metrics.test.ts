@@ -426,20 +426,41 @@ test("a top-rated listing earns a premium over the market median", () => {
   assert.ok(qualityMultiplier(null) < 1);
 });
 
-test("nights without enough samples fall back to the base median", () => {
+test("nights without enough real samples get NO suggestion instead of a synthetic one", () => {
   const index = buildMarketNightIndex(
     [peerRadar(2, [{ date: "2026-09-01", price: 2_000_000, discount: 0 }])],
     undefined,
     1,
   );
 
-  const thin = suggestNightPrice("2026-09-01", index, { rating: 4.7, fallbackMedian: 2_500_000 });
+  const thin = suggestNightPrice("2026-09-01", index, { rating: 4.7 });
   assert.equal(thin.samples, 1);
-  assert.ok(thin.market >= 2_000_000, "should use the fallback, not the single sample");
+  assert.equal(thin.market, null, "a single sample must not produce a market figure");
+  assert.equal(thin.min, null);
+  assert.equal(thin.max, null);
 
-  const empty = suggestNightPrice("2027-01-01", index, { rating: 4.7, fallbackMedian: 2_500_000 });
+  const empty = suggestNightPrice("2027-01-01", index, { rating: 4.7 });
   assert.equal(empty.samples, 0);
-  assert.ok(empty.min < empty.center && empty.center < empty.max);
+  assert.equal(empty.market, null);
+  assert.equal(empty.center, null);
+});
+
+test("nights with enough real samples produce a band around the observed median", () => {
+  const index = buildMarketNightIndex(
+    [
+      peerRadar(2, [{ date: "2026-09-01", price: 2_000_000, discount: 0 }]),
+      peerRadar(3, [{ date: "2026-09-01", price: 2_500_000, discount: 0 }]),
+      peerRadar(4, [{ date: "2026-09-01", price: 3_000_000, discount: 0 }]),
+    ],
+    undefined,
+    1,
+  );
+
+  const night = suggestNightPrice("2026-09-01", index, { rating: 4.7 });
+  assert.equal(night.samples, 3);
+  assert.equal(night.market, 2_500_000);
+  assert.ok(night.min !== null && night.center !== null && night.max !== null);
+  assert.ok(night.min < night.center && night.center < night.max);
 });
 
 test("rate split separates weekend from weekday and ignores sold nights", () => {

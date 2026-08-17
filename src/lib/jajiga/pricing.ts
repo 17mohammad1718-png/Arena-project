@@ -90,20 +90,11 @@ export function buildMarketNightIndex(
 /*                              Suggested pricing                             */
 /* -------------------------------------------------------------------------- */
 
-const SEASON_MULTIPLIER: Record<"high" | "mid" | "low", number> = {
-  high: 1.12,
-  mid: 1,
-  low: 0.9,
-};
-
-const HOLIDAY_MULTIPLIER = 1.12;
 const ROUND_TO = 50_000;
 
 export interface PricingContext {
   /** Owner rating, used to justify a premium over the median. */
   rating: number | null;
-  /** Fallback median when a night has no radar samples. */
-  fallbackMedian: number;
 }
 
 function roundPrice(value: number): number {
@@ -121,14 +112,21 @@ export function qualityMultiplier(rating: number | null): number {
 }
 
 export interface SuggestedNight {
-  market: number;
-  min: number;
-  max: number;
-  center: number;
+  /** Observed market median for the night, or null when not enough real data. */
+  market: number | null;
+  min: number | null;
+  max: number | null;
+  center: number | null;
   samples: number;
   marketOccupancy: number;
 }
 
+/**
+ * Suggest a price band for one night — strictly from observed competitor
+ * prices. Nights with fewer than 3 real radar samples get NO suggestion
+ * (null) instead of a synthesized formula-based estimate: the dashboard only
+ * shows numbers that trace back to real data.
+ */
 export function suggestNightPrice(
   date: string,
   index: Map<string, MarketNight>,
@@ -137,26 +135,21 @@ export function suggestNightPrice(
   const entry = index.get(date);
   const samples = entry?.samples ?? 0;
 
-  // With no live samples fall back to the base median adjusted for weekend and
-  // season, so the calendar never shows an empty suggestion.
-  let market = samples >= 3 ? entry!.median : ctx.fallbackMedian;
-  if (samples < 3) {
-    if (isWeekendNight(date)) market *= 1.15;
-    market *= SEASON_MULTIPLIER[demandSeason(date)];
-    if (holidayName(date)) market *= HOLIDAY_MULTIPLIER;
-  } else if (holidayName(date)) {
-    // Radar already prices the weekend and the season in; only holidays that
-    // competitors may not have reacted to yet get an extra nudge.
-    market *= HOLIDAY_MULTIPLIER;
+  if (!entry || samples < 3) {
+    return {
+      market: null,
+      center: null,
+      min: null,
+      max: null,
+      samples,
+      marketOccupancy: entry?.marketOccupancy ?? 0,
+    };
   }
 
-  market = roundPrice(market);
+  const market = roundPrice(entry.median);
 
   // High market occupancy = scarcity, so the band can shift upward.
-  const scarcity =
-    entry && entry.samples >= 3
-      ? 1 + Math.min(Math.max(entry.marketOccupancy - 0.2, 0), 0.5) * 0.24
-      : 1;
+  const scarcity = 1 + Math.min(Math.max(entry.marketOccupancy - 0.2, 0), 0.5) * 0.24;
 
   const center = market * qualityMultiplier(ctx.rating) * scarcity;
 
@@ -166,7 +159,7 @@ export function suggestNightPrice(
     min: roundPrice(center * 0.93),
     max: roundPrice(center * 1.09),
     samples,
-    marketOccupancy: entry?.marketOccupancy ?? 0,
+    marketOccupancy: entry.marketOccupancy,
   };
 }
 
@@ -190,10 +183,11 @@ export interface CalendarDay {
   /** Price after the listing-level discount. */
   effectivePrice: number | null;
   discountPercent: number;
-  market: number;
-  suggestedMin: number;
-  suggestedMax: number;
-  suggestedCenter: number;
+  /** Observed market median for the night; null when not enough real samples. */
+  market: number | null;
+  suggestedMin: number | null;
+  suggestedMax: number | null;
+  suggestedCenter: number | null;
   samples: number;
   marketOccupancy: number;
   gap: number | null;
@@ -224,7 +218,7 @@ export function buildCalendarMonth(
     const effective = night?.effectivePrice ?? null;
 
     const gap =
-      effective !== null && suggestion.market > 0
+      effective !== null && suggestion.market !== null && suggestion.market > 0
         ? (effective - suggestion.market) / suggestion.market
         : null;
 
@@ -293,8 +287,14 @@ export function summarizeCalendar(days: CalendarDay[]): CalendarSummary {
   const over = priced.filter((d) => d.verdict === "overpriced");
 
   const uplift = open
-    .filter((d) => !d.isPast && d.effectivePrice !== null && d.effectivePrice < d.suggestedMin)
-    .reduce((total, d) => total + (d.suggestedMin - (d.effectivePrice ?? 0)), 0);
+    .filter(
+      (d) =>
+        !d.isPast &&
+        d.effectivePrice !== null &&
+        d.suggestedMin !== null &&
+        d.effectivePrice < d.suggestedMin,
+    )
+    .reduce((total, d) => total + ((d.suggestedMin ?? 0) - (d.effectivePrice ?? 0)), 0);
 
   return {
     trackedNights: tracked.length,
@@ -305,9 +305,12 @@ export function summarizeCalendar(days: CalendarDay[]): CalendarSummary {
     avgPrice: priced.length
       ? priced.reduce((a, d) => a + (d.effectivePrice ?? 0), 0) / priced.length
       : 0,
-    avgMarketPrice: tracked.length
-      ? tracked.reduce((a, d) => a + d.market, 0) / tracked.length
-      : 0,
+    avgMarketPrice: (() => {
+      const withMarket = tracked.filter((d) => d.market !== null);
+      return withMarket.length
+        ? withMarket.reduce((a, d) => a + (d.market ?? 0), 0) / withMarket.length
+        : 0;
+    })(),
     underpricedNights: under.length,
     overpricedNights: over.length,
     holidays: days

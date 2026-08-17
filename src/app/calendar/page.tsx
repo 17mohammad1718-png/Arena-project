@@ -32,7 +32,7 @@ export default async function CalendarPage({
   const days = buildCalendarMonth(
     data.calendar,
     data.marketNights,
-    { rating: data.owner.rating, fallbackMedian: data.market.medianPrice },
+    { rating: data.owner.rating },
     year,
     month,
     today,
@@ -204,8 +204,9 @@ function DayCell({ day, today }: { day: CalendarDay; today: string }) {
           : "bg-transparent ring-white/5";
 
   // Nights before today carry no decision, and nights outside the radar window
-  // have no observed price — neither should compete for attention.
-  const dimmed = day.isPast || !day.isTracked;
+  // or without enough observed competitor prices have no real market figure —
+  // none of these should compete for attention.
+  const dimmed = day.isPast || !day.isTracked || day.market === null;
 
   const priceTone =
     day.verdict === "underpriced"
@@ -224,7 +225,7 @@ function DayCell({ day, today }: { day: CalendarDay; today: string }) {
         dimmed ? "opacity-45" : ""
       }`}
       title={
-        dimmed
+        dimmed || day.market === null || day.suggestedMin === null || day.suggestedMax === null
           ? `${toJalaliLong(day.date)}${day.holiday ? ` — ${day.holiday}` : ""} — خارج از بازه رصد`
           : `${toJalaliLong(day.date)}${day.holiday ? ` — ${day.holiday}` : ""} · بازار ${formatToman(
               day.market,
@@ -250,7 +251,7 @@ function DayCell({ day, today }: { day: CalendarDay; today: string }) {
         <span className="text-[9px] text-slate-600">—</span>
       )}
 
-      {dimmed ? (
+      {dimmed || day.market === null ? (
         <span className="text-[9px] text-slate-600">&nbsp;</span>
       ) : (
         <span className="num block text-[9px] text-slate-500">{formatTomanShort(day.market)}</span>
@@ -266,9 +267,15 @@ function OpportunityTable({ days }: { days: CalendarDay[] }) {
         !day.isPast &&
         day.state === "open" &&
         day.effectivePrice !== null &&
+        day.suggestedMin !== null &&
         day.effectivePrice < day.suggestedMin,
     )
-    .sort((a, b) => b.suggestedMin - (b.effectivePrice ?? 0) - (a.suggestedMin - (a.effectivePrice ?? 0)))
+    .sort(
+      (a, b) =>
+        (b.suggestedMin ?? 0) -
+        (b.effectivePrice ?? 0) -
+        ((a.suggestedMin ?? 0) - (a.effectivePrice ?? 0)),
+    )
     .slice(0, 10);
 
   if (!rows.length) {
@@ -303,10 +310,10 @@ function OpportunityTable({ days }: { days: CalendarDay[] }) {
                 ) : null}
               </td>
               <td className="num py-2 text-slate-200">{formatTomanShort(day.effectivePrice ?? 0)}</td>
-              <td className="num py-2 text-slate-400">{formatTomanShort(day.market)}</td>
-              <td className="num py-2 text-brand-300">{formatTomanShort(day.suggestedMin)}</td>
+              <td className="num py-2 text-slate-400">{formatTomanShort(day.market ?? 0)}</td>
+              <td className="num py-2 text-brand-300">{formatTomanShort(day.suggestedMin ?? 0)}</td>
               <td className="num py-2 font-semibold text-amber-300">
-                +{formatTomanShort(day.suggestedMin - (day.effectivePrice ?? 0))}
+                +{formatTomanShort((day.suggestedMin ?? 0) - (day.effectivePrice ?? 0))}
               </td>
             </tr>
           ))}

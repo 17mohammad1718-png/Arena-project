@@ -264,9 +264,13 @@ export function PriceComparisonChart({
 }: {
   data: { name: string; weekday: number; weekend: number; isHost: boolean }[];
 }) {
+  // Some listings are only tracked by radar, so a weekend figure may be absent.
+  // Falling back to the weekday value keeps the bar honest rather than drawing
+  // a zero-length bar that reads as "free".
+  const shaped = data.map((d) => ({ ...d, weekend: d.weekend || d.weekday }));
   return (
-    <ResponsiveContainer width="100%" height={Math.max(240, data.length * 42)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+    <ResponsiveContainer width="100%" height={Math.max(240, shaped.length * 42)}>
+      <BarChart data={shaped} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
         <CartesianGrid stroke={GRID} horizontal={false} />
         <XAxis
           type="number"
@@ -307,12 +311,12 @@ export function PriceComparisonChart({
           }
         />
         <Bar dataKey="weekday" barSize={9} radius={[0, 4, 4, 0]}>
-          {data.map((entry) => (
+          {shaped.map((entry) => (
             <Cell key={`wd-${entry.name}`} fill={entry.isHost ? "#06b6d4" : "#334155"} />
           ))}
         </Bar>
         <Bar dataKey="weekend" barSize={9} radius={[0, 4, 4, 0]}>
-          {data.map((entry) => (
+          {shaped.map((entry) => (
             <Cell key={`we-${entry.name}`} fill={entry.isHost ? "#f59e0b" : "#475569"} />
           ))}
         </Bar>
@@ -429,10 +433,10 @@ export function RatingRadar({ data }: { data: { subject: string; score: number }
 export function WeekdayChart({
   data,
 }: {
-  data: { day: string; occupancy: number; adr: number }[];
+  data: { day: string; marketOccupancy: number; marketPrice: number; ownerPrice: number }[];
 }) {
   return (
-    <ResponsiveContainer width="100%" height={230}>
+    <ResponsiveContainer width="100%" height={240}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="day" axisLine={AXIS} tickLine={false} reversed />
@@ -461,30 +465,55 @@ export function WeekdayChart({
                 label={String(label)}
                 rows={[
                   {
-                    name: "نرخ اشغال",
+                    name: "پر بودن بازار",
                     value: formatPercent(
-                      Number(payload.find((p) => p.dataKey === "occupancy")?.value ?? 0),
+                      Number(payload.find((p) => p.dataKey === "marketOccupancy")?.value ?? 0),
                     ),
                     color: "#22d3ee",
                   },
                   {
-                    name: "میانگین نرخ",
-                    value: formatToman(Number(payload.find((p) => p.dataKey === "adr")?.value ?? 0)),
+                    name: "میانه نرخ بازار",
+                    value: formatToman(
+                      Number(payload.find((p) => p.dataKey === "marketPrice")?.value ?? 0),
+                    ),
                     color: "#fbbf24",
+                  },
+                  {
+                    name: "نرخ شما",
+                    value: formatToman(
+                      Number(payload.find((p) => p.dataKey === "ownerPrice")?.value ?? 0),
+                    ),
+                    color: "#a78bfa",
                   },
                 ]}
               />
             ) : null
           }
         />
-        <Bar yAxisId="rate" dataKey="occupancy" fill="#22d3ee" radius={[4, 4, 0, 0]} barSize={26} opacity={0.8} />
+        <Bar
+          yAxisId="rate"
+          dataKey="marketOccupancy"
+          fill="#22d3ee"
+          radius={[4, 4, 0, 0]}
+          barSize={26}
+          opacity={0.75}
+        />
         <Line
           yAxisId="money"
           type="monotone"
-          dataKey="adr"
+          dataKey="marketPrice"
           stroke="#fbbf24"
           strokeWidth={2}
           dot={{ r: 2.5, fill: "#fbbf24" }}
+        />
+        <Line
+          yAxisId="money"
+          type="monotone"
+          dataKey="ownerPrice"
+          stroke="#a78bfa"
+          strokeWidth={2}
+          strokeDasharray="4 3"
+          dot={{ r: 2.5, fill: "#a78bfa" }}
         />
       </ComposedChart>
     </ResponsiveContainer>

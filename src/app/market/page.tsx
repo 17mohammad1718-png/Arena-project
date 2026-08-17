@@ -19,12 +19,30 @@ export default function MarketPage() {
     ? (owner.basePrice - market.medianPrice) / market.medianPrice
     : 0;
 
+  // Prefer the rate actually observed in the radar calendar over the "from"
+  // price on the listing card: only the calendar shows the weekend uplift.
+  const rateOf = (id: number, fallback: number) => {
+    const split = data.rateSplits.get(id);
+    return {
+      weekday: split?.weekday || fallback,
+      weekend: split?.weekend || split?.weekday || fallback,
+    };
+  };
+
+  const ownerRate = rateOf(owner.id, owner.basePrice);
+  const trackedPeers = peers.filter((peer) => data.rateSplits.has(peer.id));
+  // Rooms with a tracked calendar carry a real weekend figure, so show those
+  // first; top up with untracked peers only if there are too few to compare.
+  const chartPeers = [
+    ...trackedPeers,
+    ...peers.filter((peer) => !data.rateSplits.has(peer.id)),
+  ].slice(0, 14);
+
   const priceChartData = [
-    { name: "اقامتگاه شما", weekday: owner.basePrice, weekend: owner.basePrice, isHost: true },
-    ...peers.slice(0, 14).map((peer) => ({
+    { name: "اقامتگاه شما", ...ownerRate, isHost: true },
+    ...chartPeers.map((peer) => ({
       name: peer.title.length > 24 ? `${peer.title.slice(0, 23)}…` : peer.title,
-      weekday: peer.basePrice,
-      weekend: peer.basePrice,
+      ...rateOf(peer.id, peer.basePrice),
       isHost: false,
     })),
   ];
@@ -89,10 +107,18 @@ export default function MarketPage() {
       </div>
 
       <Card
-        title="مقایسه نرخ پایه با رقبای مشابه"
-        subtitle="میله پررنگ متعلق به اقامتگاه شماست."
+        title="نرخ روز عادی در برابر آخر هفته"
+        subtitle={`میله پررنگ متعلق به شماست. برای ${formatNumber(
+          trackedPeers.length,
+        )} اقامتگاه، نرخ واقعی از تقویم رصدشده خوانده شده و بقیه نرخ پایه آگهی را نشان می‌دهند.`}
       >
         <PriceComparisonChart data={priceChartData} />
+        {ownerRate.weekend > ownerRate.weekday ? null : (
+          <p className="mt-3 rounded-lg bg-amber-500/8 p-3 text-[11px] leading-relaxed text-amber-200 ring-1 ring-amber-500/20">
+            نرخ شما برای آخر هفته با روزهای عادی تفاوتی ندارد، در حالی که بیشتر رقبا آخر هفته
+            گران‌تر می‌فروشند. این ساده‌ترین فرصت افزایش درآمد بدون از دست دادن رزرو است.
+          </p>
+        )}
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">

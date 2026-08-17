@@ -28,7 +28,14 @@ import {
   selectPeers,
 } from "../src/lib/jajiga/analytics";
 import type { CalendarNight } from "../src/lib/jajiga/analytics";
-import { buildMarketNightIndex, qualityMultiplier, suggestNightPrice } from "../src/lib/jajiga/pricing";
+import {
+  buildMarketNightIndex,
+  computeMarketWeekdayProfile,
+  qualityMultiplier,
+  roomRateSplit,
+  suggestNightPrice,
+} from "../src/lib/jajiga/pricing";
+import { buildInsights } from "../src/lib/jajiga/insights";
 import type { RoomProfile } from "../src/lib/jajiga/load";
 import type { RadarFile, Review, RevenueRoom } from "../src/lib/jajiga/schemas";
 
@@ -435,6 +442,117 @@ test("nights without enough samples fall back to the base median", () => {
   assert.ok(empty.min < empty.center && empty.center < empty.max);
 });
 
+test("rate split separates weekend from weekday and ignores sold nights", () => {
+  const split = roomRateSplit(
+    peerRadar(2, [
+      { date: "2026-08-17", price: 2_000_000, discount: 0 }, // دوشنبه
+      { date: "2026-08-18", price: 2_000_000, discount: 0 }, // سه‌شنبه
+      { date: "2026-08-20", price: 4_000_000, discount: 0 }, // پنجشنبه
+      { date: "2026-08-21", price: 4_000_000, discount: 0 }, // جمعه
+      // Sold out: its price is stale and must not move either median.
+      { date: "2026-08-22", price: 9_000_000, discount: 0, is_unavailable: true },
+    ]),
+  );
+
+  assert.equal(split.weekday, 2_000_000);
+  assert.equal(split.weekend, 4_000_000);
+});
+
+test("the weekday profile is market-wide and overlays the owner's own rate", () => {
+  const owner = readCalendar(
+    radar([{ date: "2026-08-21", price: 5_000_000, discount: 0 }]), // جمعه
+    undefined,
+    "2026-08-17",
+  );
+
+  const profile = computeMarketWeekdayProfile(
+    [
+      peerRadar(2, [{ date: "2026-08-21", price: 3_000_000, discount: 0 }]),
+      peerRadar(3, [{ date: "2026-08-21", price: 3_000_000, discount: 0, is_unavailable: true }]),
+      // The owner's own radar file must never pollute the market side.
+      peerRadar(3297585, [{ date: "2026-08-21", price: 9_000_000, discount: 0 }]),
+    ],
+    owner,
+    undefined,
+    3297585,
+  );
+
+  const friday = profile.find((p) => p.day === "جمعه");
+  assert.ok(friday);
+  assert.equal(friday.marketPrice, 3_000_000);
+  assert.equal(friday.ownerPrice, 5_000_000);
+  assert.equal(friday.marketOccupancy, 0.5);
+  assert.equal(profile.length, 7, "every weekday is represented, even when empty");
+});
+
+/* -------------------------------------------------------------------------- */
+/*                              Pricing insights                              */
+/* -------------------------------------------------------------------------- */
+
+const INSIGHT_BASE = {
+  market: {
+    sampleSize: 20,
+    medianPrice: 2_495_000,
+    p25: 2_000_000,
+    p75: 2_592_500,
+    pricePercentile: 40,
+    medianRating: 4.8,
+    ratingPercentile: 93,
+    medianReviews: 20,
+    medianOccupancy: 0.08,
+    ownerOccupancy: 0.06,
+    missingFeatures: [],
+    uniqueFeatures: [],
+  },
+  calendar: computeCalendarKpis([]),
+  reviews: null,
+  reviewTopics: [],
+  leaderboard: [],
+  peerCount: 20,
+};
+
+test("a cheap card price does not mask an expensive calendar", () => {
+  const insights = buildInsights({
+    ...INSIGHT_BASE,
+    owner: room({ id: 3297585, basePrice: 2_400_000, rating: 5 }),
+    ownerRate: { weekday: 3_200_000, weekend: 3_650_000 },
+    marketRate: { weekday: 2_345_000, weekend: 3_000_000 },
+  });
+
+  const ids = insights.map((i) => i.id);
+  assert.ok(ids.includes("real-rate-gap"), "the real rate gap must be reported");
+  assert.ok(
+    !ids.includes("quality-price-mismatch"),
+    "charging above market is not a quality/price bargain",
+  );
+  assert.ok(!ids.includes("underpriced"), "the card price must not claim underpricing");
+  assert.equal(insights.find((i) => i.id === "real-rate-gap")?.tone, "warning");
+});
+
+test("a genuinely cheap listing is still flagged as an opportunity", () => {
+  const insights = buildInsights({
+    ...INSIGHT_BASE,
+    owner: room({ id: 3297585, basePrice: 1_800_000, rating: 5 }),
+    ownerRate: { weekday: 1_800_000, weekend: 2_000_000 },
+    marketRate: { weekday: 2_400_000, weekend: 3_000_000 },
+  });
+
+  const gap = insights.find((i) => i.id === "real-rate-gap");
+  assert.ok(gap);
+  assert.equal(gap.tone, "opportunity");
+});
+
+test("a flat calendar is flagged when the market charges more at weekends", () => {
+  const insights = buildInsights({
+    ...INSIGHT_BASE,
+    owner: room({ id: 3297585, basePrice: 2_400_000 }),
+    ownerRate: { weekday: 2_400_000, weekend: 2_400_000 },
+    marketRate: { weekday: 2_400_000, weekend: 3_200_000 },
+  });
+
+  assert.ok(insights.some((i) => i.id === "no-weekend-uplift"));
+});
+
 /* -------------------------------------------------------------------------- */
 /*                                   Reviews                                  */
 /* -------------------------------------------------------------------------- */
@@ -498,6 +616,9 @@ test("the real dataset loads without schema errors", async () => {
   assert.ok(data.marketNights.size > 0);
   assert.ok(data.insights.length >= 3);
   assert.equal(data.owner.id, 3297585);
+  assert.equal(data.marketWeekday.length, 7);
+  assert.ok(data.ownerRate && data.ownerRate.weekday > 0);
+  assert.ok(data.marketRate && data.marketRate.weekday > 0);
 });
 
 test("owner KPIs stay internally consistent on the real data", async () => {

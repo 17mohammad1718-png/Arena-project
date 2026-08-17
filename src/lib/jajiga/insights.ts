@@ -29,16 +29,88 @@ export function buildInsights(input: {
   reviewTopics: { topic: string; tone: "positive" | "negative"; count: number }[];
   leaderboard: RevenueLeaderboardRow[];
   peerCount: number;
+  /** Median rate the owner actually posts, from their radar calendar. */
+  ownerRate?: { weekday: number; weekend: number } | null;
+  /** Median rate the tracked market posts, split by weekday/weekend. */
+  marketRate?: { weekday: number; weekend: number } | null;
 }): Insight[] {
-  const { owner, market, calendar, reviews, reviewTopics, leaderboard, peerCount } = input;
+  const {
+    owner,
+    market,
+    calendar,
+    reviews,
+    reviewTopics,
+    leaderboard,
+    peerCount,
+    ownerRate,
+    marketRate,
+  } = input;
   const insights: Insight[] = [];
 
   /* -------------------------------- Pricing -------------------------------- */
 
+  /*
+   * The listing card advertises a "from" price, but the calendar is what a
+   * guest actually pays. These can differ sharply — and when they do, the card
+   * price is the misleading one. Judge pricing on the real asking rate first.
+   */
+  if (ownerRate?.weekday && marketRate?.weekday) {
+    const realGap = (ownerRate.weekday - marketRate.weekday) / marketRate.weekday;
+
+    if (Math.abs(realGap) >= 0.12) {
+      const above = realGap > 0;
+      insights.push({
+        id: "real-rate-gap",
+        tone: above ? "warning" : "opportunity",
+        title: above
+          ? `نرخ واقعی تقویم شما ${formatPercent(realGap)} بالاتر از بازار است`
+          : `نرخ واقعی تقویم شما ${formatPercent(Math.abs(realGap))} پایین‌تر از بازار است`,
+        body: `کارت آگهی شما «از ${formatToman(
+          owner.basePrice,
+        )}» را نشان می‌دهد، اما نرخی که واقعاً در تقویم گذاشته‌اید ${formatToman(
+          ownerRate.weekday,
+        )} برای شب‌های عادی و ${formatToman(
+          ownerRate.weekend,
+        )} برای آخر هفته است. میانه واقعی رقبای رصدشده ${formatToman(
+          marketRate.weekday,
+        )} و ${formatToman(marketRate.weekend)} است.${
+          above
+            ? " اختلاف قیمت کارت با قیمت تقویم باعث می‌شود مهمان در نتایج جستجو جذب شود ولی هنگام انتخاب تاریخ منصرف شود."
+            : ""
+        }`,
+        action: above
+          ? `اگر تقویم خالی مانده، نرخ شب‌های عادی را به محدوده ${formatToman(
+              marketRate.weekday,
+            )} نزدیک کنید و اختلاف را روی آخر هفته نگه دارید.`
+          : `فضای افزایش نرخ تا حدود ${formatToman(marketRate.weekday)} وجود دارد.`,
+        evidence: "مقایسه نرخ واقعی تقویم شما با تقویم رصدشده رقبا، نه نرخ پایه کارت آگهی",
+      });
+    }
+
+    // A flat calendar leaves the easiest money on the table.
+    if (ownerRate.weekend <= ownerRate.weekday * 1.02 && marketRate.weekend > marketRate.weekday) {
+      const uplift = (marketRate.weekend - marketRate.weekday) / marketRate.weekday;
+      insights.push({
+        id: "no-weekend-uplift",
+        tone: "opportunity",
+        title: "برای آخر هفته نرخ جداگانه‌ای تعیین نکرده‌اید",
+        body: `رقبای رصدشده آخر هفته را حدود ${formatPercent(
+          uplift,
+        )} گران‌تر از شب‌های عادی می‌فروشند (${formatToman(marketRate.weekday)} در برابر ${formatToman(
+          marketRate.weekend,
+        )}), اما نرخ شما در کل هفته یکسان است.`,
+        action: "افزایش نرخ چهارشنبه تا جمعه؛ تقاضای این شب‌ها کمترین حساسیت را به قیمت دارد.",
+        evidence: "تفکیک نرخ آخر هفته و روز عادی از تقویم رصدشده",
+      });
+    }
+  }
+
   if (market.sampleSize >= 5 && market.medianPrice > 0) {
     const gap = (owner.basePrice - market.medianPrice) / market.medianPrice;
 
-    if (gap <= -0.08) {
+    const realRateCovered = insights.some((i) => i.id === "real-rate-gap");
+
+    if (gap <= -0.08 && !realRateCovered) {
       insights.push({
         id: "underpriced",
         tone: "opportunity",
@@ -52,7 +124,7 @@ export function buildInsights(input: {
         action: `آزمایش نرخ در محدوده ${formatToman(market.medianPrice)} برای چند شب و رصد اثر آن بر رزرو.`,
         evidence: `مقایسه با ${formatNumber(market.sampleSize)} اقامتگاه هم‌ظرفیت و هم‌محله`,
       });
-    } else if (gap >= 0.15) {
+    } else if (gap >= 0.15 && !realRateCovered) {
       insights.push({
         id: "overpriced",
         tone: "warning",
@@ -68,11 +140,17 @@ export function buildInsights(input: {
 
   /* ------------------------- Quality vs price mismatch ---------------------- */
 
+  const chargesAboveMarket =
+    !!ownerRate?.weekday && !!marketRate?.weekday && ownerRate.weekday > marketRate.weekday * 1.05;
+
   if (
     owner.rating !== null &&
     market.ratingPercentile >= 70 &&
     market.pricePercentile <= 45 &&
-    market.sampleSize >= 5
+    market.sampleSize >= 5 &&
+    // Only a genuine bargain qualifies: if the calendar already charges above
+    // market, the low card price is a display artefact, not underpricing.
+    !chargesAboveMarket
   ) {
     insights.push({
       id: "quality-price-mismatch",

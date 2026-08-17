@@ -21,8 +21,8 @@ import type {
   ReviewAnalysis,
 } from "./analytics";
 import { buildInsights } from "./insights";
-import { buildMarketNightIndex } from "./pricing";
-import type { MarketNight } from "./pricing";
+import { buildMarketNightIndex, computeMarketWeekdayProfile, roomRateSplit } from "./pricing";
+import type { MarketNight, WeekdayMarketPoint } from "./pricing";
 import type { Insight } from "./insights";
 import {
   OWNER_ROOM_ID,
@@ -50,6 +50,14 @@ export interface JajigaDataset {
   marketNights: Map<string, MarketNight>;
   monthly: MonthlyPoint[];
   weekdayProfile: { day: string; occupancy: number; adr: number }[];
+  /** Weekday demand across the tracked market, with the owner's price overlaid. */
+  marketWeekday: WeekdayMarketPoint[];
+  /** Observed weekday/weekend median rate per room id, from the radar feed. */
+  rateSplits: Map<number, { weekday: number; weekend: number }>;
+  /** The owner's real posted rate, which can differ from the card price. */
+  ownerRate: { weekday: number; weekend: number } | null;
+  /** The tracked market's real posted rate. */
+  marketRate: { weekday: number; weekend: number } | null;
 
   revenueSnapshots: RevenueSnapshot[];
   leaderboard: RevenueLeaderboardRow[];
@@ -119,9 +127,15 @@ function buildDataset(): JajigaDataset {
   // overlap is too thin, fall back to every tracked room.
   const peerIds = new Set(peers.map((peer) => peer.id));
   const radarPeerOverlap = radarRooms.filter((room) => peerIds.has(room.room_id)).length;
-  const marketNights = buildMarketNightIndex(
+  const radarFilter = radarPeerOverlap >= 6 ? peerIds : undefined;
+  const marketNights = buildMarketNightIndex(radarRooms, radarFilter, OWNER_ROOM_ID);
+  const rateSplits = new Map(
+    radarRooms.map((room) => [room.room_id, roomRateSplit(room)] as const),
+  );
+  const marketWeekday = computeMarketWeekdayProfile(
     radarRooms,
-    radarPeerOverlap >= 6 ? peerIds : undefined,
+    calendar,
+    radarFilter,
     OWNER_ROOM_ID,
   );
 
@@ -142,6 +156,9 @@ function buildDataset(): JajigaDataset {
   const reviewTopics = extractReviewTopics(ownerReviews);
 
   /* ------------------------------- Insights ------------------------------- */
+  const ownerRate = rateSplits.get(OWNER_ROOM_ID) ?? null;
+  const marketRate = deriveMarketRate(marketWeekday);
+
   const insights = buildInsights({
     owner,
     market,
@@ -150,6 +167,8 @@ function buildDataset(): JajigaDataset {
     reviewTopics,
     leaderboard: realizedLeaderboard ?? leaderboard,
     peerCount: peers.length,
+    ownerRate,
+    marketRate,
   });
 
   return {
@@ -164,6 +183,10 @@ function buildDataset(): JajigaDataset {
     marketNights,
     monthly,
     weekdayProfile,
+    marketWeekday,
+    rateSplits,
+    ownerRate,
+    marketRate,
 
     revenueSnapshots,
     leaderboard,
@@ -214,6 +237,23 @@ function formatRealizedRange(raw: string | null, rooms: RevenueSnapshot["rooms"]
   }
 
   return raw;
+}
+
+/** Collapse the weekday profile into a single weekday/weekend market rate. */
+function deriveMarketRate(
+  profile: WeekdayMarketPoint[],
+): { weekday: number; weekend: number } | null {
+  const weekdayPrices = profile.slice(0, 4).map((p) => p.marketPrice).filter((p) => p > 0);
+  const weekendPrices = profile.slice(4).map((p) => p.marketPrice).filter((p) => p > 0);
+  if (!weekdayPrices.length || !weekendPrices.length) return null;
+
+  const mid = (list: number[]) => {
+    const sorted = [...list].sort((a, b) => a - b);
+    const i = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[i] : Math.round((sorted[i - 1] + sorted[i]) / 2);
+  };
+
+  return { weekday: mid(weekdayPrices), weekend: mid(weekendPrices) };
 }
 
 /** Distinct nights covered by the realized snapshot. */
@@ -302,6 +342,10 @@ function emptyDataset(today: string): JajigaDataset {
     marketNights: new Map(),
     monthly: [],
     weekdayProfile: [],
+    marketWeekday: [],
+    rateSplits: new Map(),
+    ownerRate: null,
+    marketRate: null,
     revenueSnapshots: [],
     leaderboard: [],
     realizedLeaderboard: null,

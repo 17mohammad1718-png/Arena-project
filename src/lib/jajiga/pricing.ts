@@ -317,3 +317,101 @@ export function summarizeCalendar(days: CalendarDay[]): CalendarSummary {
     bookedRevenue: booked.reduce((a, d) => a + (d.effectivePrice ?? 0), 0),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/*                          Weekday demand, market-wide                       */
+/* -------------------------------------------------------------------------- */
+
+export interface WeekdayMarketPoint {
+  day: string;
+  /** Share of tracked competitor nights already taken on this weekday. */
+  marketOccupancy: number;
+  /** Median asking price competitors post for this weekday. */
+  marketPrice: number;
+  /** The owner's own asking price on this weekday. */
+  ownerPrice: number;
+  samples: number;
+}
+
+const WEEKDAY_NAMES = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+
+function weekdayIndex(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return (new Date(y, m - 1, d, 12).getDay() + 1) % 7; // 0 = شنبه
+}
+
+/**
+ * Weekday demand across the tracked market.
+ *
+ * The owner's own booked nights are far too few to form a weekday profile —
+ * two nights produce a chart of zeros. What the host actually needs to know is
+ * which weeknights *sell in this area* and what competitors charge for them,
+ * so the profile is computed market-wide and the owner's asking price is
+ * overlaid for comparison.
+ */
+export function computeMarketWeekdayProfile(
+  radarRooms: RadarFile[],
+  ownerNights: CalendarNight[],
+  peerIds?: Set<number>,
+  ownerId?: number,
+): WeekdayMarketPoint[] {
+  const buckets = WEEKDAY_NAMES.map(() => ({ prices: [] as number[], taken: 0, total: 0 }));
+
+  for (const room of radarRooms) {
+    if (room.room_id === ownerId) continue;
+    if (peerIds && peerIds.size && !peerIds.has(room.room_id)) continue;
+
+    for (const night of room.nights) {
+      const bucket = buckets[weekdayIndex(night.date)];
+      if (!bucket) continue;
+      bucket.total += 1;
+      if (night.is_unavailable === true) {
+        bucket.taken += 1;
+        continue;
+      }
+      if (typeof night.price === "number" && night.price > 0) {
+        const discount = typeof night.discount === "number" ? night.discount : 0;
+        bucket.prices.push(Math.round(night.price * (1 - discount / 100)));
+      }
+    }
+  }
+
+  const ownerBuckets = WEEKDAY_NAMES.map(() => [] as number[]);
+  for (const night of ownerNights) {
+    if (night.effectivePrice) ownerBuckets[weekdayIndex(night.date)].push(night.effectivePrice);
+  }
+
+  return WEEKDAY_NAMES.map((day, index) => {
+    const bucket = buckets[index];
+    const sorted = [...bucket.prices].sort((a, b) => a - b);
+    const ownerSorted = [...ownerBuckets[index]].sort((a, b) => a - b);
+    return {
+      day,
+      marketOccupancy: bucket.total ? bucket.taken / bucket.total : 0,
+      marketPrice: Math.round(quantile(sorted, 0.5)),
+      ownerPrice: Math.round(quantile(ownerSorted, 0.5)),
+      samples: sorted.length,
+    };
+  });
+}
+
+/** Median weekday and weekend asking price for a single tracked room. */
+export function roomRateSplit(room: RadarFile): { weekday: number; weekend: number } {
+  const weekday: number[] = [];
+  const weekend: number[] = [];
+
+  for (const night of room.nights) {
+    if (night.is_unavailable === true) continue;
+    if (typeof night.price !== "number" || night.price <= 0) continue;
+    const discount = typeof night.discount === "number" ? night.discount : 0;
+    const price = Math.round(night.price * (1 - discount / 100));
+    // Trust the feed's own weekend flag when present; fall back to the Iranian
+    // convention of چهارشنبه–جمعه otherwise.
+    const isWeekend =
+      typeof night.is_weekend === "boolean" ? night.is_weekend : weekdayIndex(night.date) >= 4;
+    (isWeekend ? weekend : weekday).push(price);
+  }
+
+  const med = (list: number[]) => Math.round(quantile([...list].sort((a, b) => a - b), 0.5));
+  return { weekday: med(weekday), weekend: med(weekend) };
+}

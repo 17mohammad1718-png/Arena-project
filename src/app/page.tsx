@@ -51,6 +51,15 @@ export default function OverviewPage() {
         }
       />
 
+      {data.ownerRate && data.ownerRate.weekday !== owner.basePrice ? (
+        <Notice tone="warning" title="نرخ کارت آگهی با نرخ تقویم شما یکی نیست">
+          روی کارت آگهی «از {formatToman(owner.basePrice)}» نوشته شده، اما نرخی که واقعاً در
+          تقویم گذاشته‌اید {formatToman(data.ownerRate.weekday)} برای شب‌های عادی و{" "}
+          {formatToman(data.ownerRate.weekend)} برای آخر هفته است. همه تحلیل‌های این داشبورد بر
+          پایه نرخ واقعی تقویم انجام می‌شود، چون همان چیزی است که مهمان پرداخت می‌کند.
+        </Notice>
+      ) : null}
+
       <Notice title="این تقویم فقط آینده را نشان می‌دهد">
         جاجیگا تاریخچه رزروهای گذشته را در دسترس قرار نمی‌دهد. شاخص‌های زیر بر پایه{" "}
         <strong>شب‌های پیش رو</strong> محاسبه شده‌اند، بنابراین نرخ اشغال پایین برای ماه‌های دور
@@ -60,10 +69,14 @@ export default function OverviewPage() {
       {/* --------------------------------- KPIs -------------------------------- */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
         <KpiCard
-          label="نرخ پایه فعلی"
-          value={formatToman(owner.basePrice)}
+          label={data.ownerRate ? "نرخ واقعی تقویم (روز عادی)" : "نرخ پایه فعلی"}
+          value={formatToman(data.ownerRate?.weekday ?? owner.basePrice)}
           icon={<IconMoney className="size-4" />}
-          hint={`میانه رقبا ${formatToman(market.medianPrice)}`}
+          hint={
+            data.ownerRate && data.marketRate
+              ? `میانه واقعی رقبا ${formatToman(data.marketRate.weekday)}`
+              : `میانه رقبا ${formatToman(market.medianPrice)}`
+          }
           tone="brand"
         />
         <KpiCard
@@ -169,9 +182,13 @@ export default function OverviewPage() {
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <Card
           title="الگوی تقاضا در روزهای هفته"
-          subtitle="در شمال ایران چهارشنبه تا جمعه پرتقاضاترین شب‌ها هستند."
+          subtitle="ستون‌ها سهم پرشده شب‌های رقبا در هر روز هفته است؛ خط بنفش نرخ خود شماست."
         >
-          <WeekdayChart data={data.weekdayProfile} />
+          <WeekdayChart data={data.marketWeekday} />
+          <p className="mt-3 rounded-lg bg-white/4 p-2.5 text-[11px] leading-relaxed text-slate-400">
+            چون تنها {formatNumber(data.calendarKpis.bookedNights)} شب از تقویم شما رزرو شده،
+            الگوی تقاضا از کل بازار رصدشده محاسبه شده است تا معنادار باشد.
+          </p>
         </Card>
 
         <Card title="مشخصات اقامتگاه شما">

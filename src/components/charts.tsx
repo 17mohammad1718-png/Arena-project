@@ -24,7 +24,7 @@ import {
 } from "recharts";
 
 import { formatNumber, formatPercent, formatToman, formatTomanShort } from "@/lib/metrics";
-import type { MonthlyPoint } from "@/lib/metrics";
+import type { MonthlyPoint } from "@/lib/jajiga/analytics";
 
 const AXIS = { stroke: "rgba(148,163,184,0.25)" };
 const GRID = "rgba(148,163,184,0.10)";
@@ -102,10 +102,8 @@ export function RevenueTrendChart({ data }: { data: MonthlyPoint[] }) {
                     color: "#22d3ee",
                   },
                   {
-                    name: "سود خالص",
-                    value: formatToman(
-                      Number(payload.find((p) => p.dataKey === "netProfit")?.value ?? 0),
-                    ),
+                    name: "شب رزروشده",
+                    value: formatNumber(Number(payload[0]?.payload?.booked ?? 0)),
                     color: "#a78bfa",
                   },
                   {
@@ -128,7 +126,6 @@ export function RevenueTrendChart({ data }: { data: MonthlyPoint[] }) {
           strokeWidth={2}
           fill="url(#revenueFill)"
         />
-        <Bar yAxisId="money" dataKey="netProfit" fill="#a78bfa" opacity={0.55} radius={[4, 4, 0, 0]} barSize={16} />
         <Line
           yAxisId="rate"
           type="monotone"
@@ -210,7 +207,7 @@ export function RateChart({ data }: { data: MonthlyPoint[] }) {
 export function NightsChart({ data }: { data: MonthlyPoint[] }) {
   const shaped = data.map((d) => ({
     ...d,
-    openNights: Math.max(d.availableNights - d.bookedNights, 0),
+    openNights: Math.max(d.available - d.booked, 0),
   }));
 
   return (
@@ -235,7 +232,7 @@ export function NightsChart({ data }: { data: MonthlyPoint[] }) {
                   {
                     name: "شب رزروشده",
                     value: formatNumber(
-                      Number(payload.find((p) => p.dataKey === "bookedNights")?.value ?? 0),
+                      Number(payload.find((p) => p.dataKey === "booked")?.value ?? 0),
                     ),
                     color: "#22d3ee",
                   },
@@ -251,7 +248,7 @@ export function NightsChart({ data }: { data: MonthlyPoint[] }) {
             ) : null
           }
         />
-        <Bar dataKey="bookedNights" stackId="n" fill="#22d3ee" radius={[0, 0, 0, 0]} barSize={22} />
+        <Bar dataKey="booked" stackId="n" fill="#22d3ee" radius={[0, 0, 0, 0]} barSize={22} />
         <Bar dataKey="openNights" stackId="n" fill="#475569" radius={[4, 4, 0, 0]} barSize={22} opacity={0.6} />
       </BarChart>
     </ResponsiveContainer>

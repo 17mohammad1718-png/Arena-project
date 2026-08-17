@@ -1,128 +1,158 @@
-import { Suspense } from "react";
-
-import { PeriodTabs } from "@/components/period-tabs";
-import { Card, EmptyState, Notice, PageHeader } from "@/components/ui";
-import { DEMO_TODAY } from "@/lib/demo-data";
+import { Card, Chip, EmptyState, Notice, PageHeader } from "@/components/ui";
 import { toJalaliLong } from "@/lib/dates";
-import { TONE_STYLES, buildInsights } from "@/lib/insights";
-import { loadDataset } from "@/lib/load-dataset";
-import {
-  computeKpis,
-  computeMarketPosition,
-  computeMonthlySeries,
-  formatNumber,
-  rankCompetitors,
-} from "@/lib/metrics";
-import { isPeriodKey, resolvePeriod } from "@/lib/period";
+import { getDataset } from "@/lib/jajiga/dataset";
+import { TONE_STYLES } from "@/lib/jajiga/insights";
+import type { Insight, InsightTone } from "@/lib/jajiga/insights";
+import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "پیشنهادها" };
 
-const ORDER = ["warning", "opportunity", "positive", "neutral"] as const;
+const ORDER: InsightTone[] = ["warning", "opportunity", "positive", "neutral"];
 
-export default async function InsightsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ period?: string }>;
-}) {
-  const params = await searchParams;
-  const periodKey = isPeriodKey(params.period) ? params.period : "last12";
+const GROUP_LABEL: Record<InsightTone, string> = {
+  warning: "نیازمند اقدام",
+  opportunity: "فرصت رشد",
+  positive: "نقاط قوت",
+  neutral: "برای اطلاع",
+};
 
-  const dataset = loadDataset();
-  const today = dataset.origin === "demo" ? DEMO_TODAY : undefined;
-  const period = resolvePeriod(periodKey, dataset.range, today);
+export default function InsightsPage() {
+  const data = getDataset();
 
-  const kpis = computeKpis(dataset, period);
-  const monthly = computeMonthlySeries(dataset, period);
-  const ranked = rankCompetitors(dataset.property, dataset.competitors);
-  const peers = ranked.filter((c) => c.similarity >= 0.55);
-  const benchmarkSet = peers.length >= 3 ? peers : ranked.slice(0, Math.min(6, ranked.length));
-  const market = computeMarketPosition(dataset.property, benchmarkSet);
+  if (data.isEmpty) {
+    return <Notice tone="warning">داده‌ای برای تولید پیشنهاد موجود نیست.</Notice>;
+  }
 
-  const insights = buildInsights(dataset, kpis, market, monthly).sort(
-    (a, b) => ORDER.indexOf(a.tone) - ORDER.indexOf(b.tone),
-  );
-
-  const counts = ORDER.map((tone) => ({
+  const grouped = ORDER.map((tone) => ({
     tone,
-    label: TONE_STYLES[tone].label,
-    count: insights.filter((i) => i.tone === tone).length,
-  })).filter((c) => c.count > 0);
+    items: data.insights.filter((insight) => insight.tone === tone),
+  })).filter((group) => group.items.length);
+
+  const ownerRealized = data.realizedLeaderboard?.find((row) => row.isOwn);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="پیشنهادهای عملی"
-        description={`تحلیل خودکار بازه ${toJalaliLong(period.start)} تا ${toJalaliLong(
-          period.end,
-        )} بر پایه عملکرد شما و مقایسه با ${formatNumber(benchmarkSet.length)} اقامتگاه مشابه.`}
-        action={
-          <Suspense fallback={null}>
-            <PeriodTabs active={periodKey} />
-          </Suspense>
-        }
+        description={`تحلیل خودکار وضعیت «${data.owner.title}» بر پایه داده واقعی جاجیگا در ${toJalaliLong(
+          data.today,
+        )}.`}
       />
 
       <Notice>
-        این پیشنهادها بر پایه قواعد شفاف و قابل بازبینی تولید می‌شوند، نه پیش‌بینی قطعی. هر کارت
-        منبع استدلال خود را ذکر می‌کند تا بتوانید با شناخت خودتان از اقامتگاه، آن را بپذیرید یا رد
-        کنید.
+        هر پیشنهاد از یک قاعده مشخص و قابل ردیابی ساخته شده و عددهای پشت آن در همین کارت آمده است.
+        این‌ها <strong>برآورد</strong> هستند و تصمیم نهایی با شماست.
       </Notice>
 
-      {counts.length ? (
-        <div className="flex flex-wrap gap-2">
-          {counts.map((item) => (
-            <span
-              key={item.tone}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ring-1 ${TONE_STYLES[item.tone].chip}`}
-            >
-              {item.label}
-              <span className="num">{formatNumber(item.count)}</span>
-            </span>
-          ))}
+      {/* --------------------------- Situation summary -------------------------- */}
+      <Card title="وضعیت فعلی در یک نگاه">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCell
+            label="نرخ پایه در برابر بازار"
+            value={`صدک ${formatNumber(data.market.pricePercentile)}`}
+            detail={`${formatToman(data.owner.basePrice)} در برابر میانه ${formatToman(
+              data.market.medianPrice,
+            )}`}
+          />
+          <SummaryCell
+            label="کیفیت در برابر بازار"
+            value={`صدک ${formatNumber(data.market.ratingPercentile)}`}
+            detail={`امتیاز ${formatNumber(data.owner.rating ?? 0, 1)} با ${formatNumber(
+              data.owner.reviewsCount,
+            )} نظر`}
+          />
+          <SummaryCell
+            label="اشغال شب‌های پیش رو"
+            value={formatPercent(data.calendarKpis.occupancyRate)}
+            detail={`${formatNumber(data.calendarKpis.bookedNights)} از ${formatNumber(
+              data.calendarKpis.availableNights,
+            )} شب`}
+          />
+          <SummaryCell
+            label="رتبه درآمد در منطقه"
+            value={
+              ownerRealized
+                ? `${formatNumber(ownerRealized.rank)} از ${formatNumber(
+                    data.realizedLeaderboard?.length ?? 0,
+                  )}`
+                : "—"
+            }
+            detail={ownerRealized ? formatToman(ownerRealized.net) : "بازه محقق‌شده ثبت نشده"}
+          />
         </div>
-      ) : null}
+      </Card>
 
-      {insights.length ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {insights.map((insight) => {
-            const tone = TONE_STYLES[insight.tone];
-            return (
-              <Card key={insight.id} className={`border ${tone.border}`}>
-                <div className="mb-2.5 flex items-start justify-between gap-3">
-                  <h3 className="text-[13px] font-extrabold leading-relaxed text-white">
-                    {insight.title}
-                  </h3>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ${tone.chip}`}
-                  >
-                    {tone.label}
-                  </span>
-                </div>
-
-                <p className="text-[12px] leading-relaxed text-slate-300">{insight.body}</p>
-
-                {insight.action ? (
-                  <div className="mt-3 rounded-xl bg-white/5 p-3 ring-1 ring-white/8">
-                    <p className="mb-1 text-[10px] font-bold text-brand-300">اقدام پیشنهادی</p>
-                    <p className="text-[12px] leading-relaxed text-slate-200">{insight.action}</p>
-                  </div>
-                ) : null}
-
-                {insight.evidence ? (
-                  <p className="mt-2.5 text-[10px] text-slate-500">مبنا: {insight.evidence}</p>
-                ) : null}
-              </Card>
-            );
-          })}
-        </div>
+      {/* ------------------------------- Insights ------------------------------- */}
+      {grouped.length ? (
+        grouped.map((group) => (
+          <section key={group.tone}>
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-200">
+              {GROUP_LABEL[group.tone]}
+              <span className="num rounded-full bg-white/6 px-2 py-0.5 text-[10px] text-slate-400">
+                {formatNumber(group.items.length)}
+              </span>
+            </h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {group.items.map((insight) => (
+                <InsightCard key={insight.id} insight={insight} />
+              ))}
+            </div>
+          </section>
+        ))
       ) : (
         <EmptyState
-          title="هنوز پیشنهادی تولید نشده است"
-          description="برای تولید پیشنهاد به داده رزرو، قیمت و رقبا نیاز است. پس از بارگذاری دیتاست، این صفحه به‌صورت خودکار پر می‌شود."
+          title="پیشنهادی تولید نشد"
+          description="با داده فعلی هیچ قاعده‌ای فعال نشد. پس از به‌روزرسانی دیتاست دوباره بررسی کنید."
         />
       )}
+    </div>
+  );
+}
+
+function InsightCard({ insight }: { insight: Insight }) {
+  const style = TONE_STYLES[insight.tone];
+
+  return (
+    <article className={`card p-4 ring-1 ${style.ring}`}>
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <h4 className={`text-[13px] font-bold leading-relaxed ${style.text}`}>{insight.title}</h4>
+        <Chip tone={style.chip}>{style.label}</Chip>
+      </div>
+
+      <p className="text-[12px] leading-relaxed text-slate-300">{insight.body}</p>
+
+      {insight.action ? (
+        <p className="mt-3 rounded-lg bg-white/4 p-2.5 text-[11px] leading-relaxed text-slate-300 ring-1 ring-white/6">
+          <span className="font-bold text-slate-100">اقدام پیشنهادی: </span>
+          {insight.action}
+        </p>
+      ) : null}
+
+      {insight.evidence ? (
+        <p className="mt-3 border-t border-white/8 pt-2.5 text-[10px] text-slate-500">
+          مبنای محاسبه: {insight.evidence}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+function SummaryCell({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl bg-white/4 p-3.5 ring-1 ring-white/6">
+      <p className="text-[11px] text-slate-400">{label}</p>
+      <p className="num mt-1 text-[15px] font-extrabold text-white">{value}</p>
+      <p className="mt-1 text-[10px] leading-relaxed text-slate-500">{detail}</p>
     </div>
   );
 }

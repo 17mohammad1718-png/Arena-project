@@ -1,275 +1,193 @@
 import { Card, Chip, DefinitionList, Notice, PageHeader } from "@/components/ui";
 import { toJalaliLong } from "@/lib/dates";
-import { loadDataset } from "@/lib/load-dataset";
+import { getDataset } from "@/lib/jajiga/dataset";
 import { formatNumber } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "منبع داده" };
 
-/** The exact columns each importable file understands. */
-const SCHEMA_GUIDE: {
-  file: string;
+/** What each real file in `data/` contributes to the app. */
+const FILE_GUIDE: {
+  path: string;
   title: string;
-  required: string[];
-  optional: string[];
+  feeds: string;
+  caveat?: string;
 }[] = [
   {
-    file: "property.csv",
-    title: "مشخصات اقامتگاه",
-    required: ["title", "capacity", "basePrice"],
-    optional: [
-      "id",
-      "listingCode",
-      "url",
-      "area",
-      "city",
-      "province",
-      "propertyType",
-      "bedrooms",
-      "extraCapacity",
-      "builtAreaM2",
-      "landAreaM2",
-      "amenities",
-      "weekendPrice",
-      "extraGuestFee",
-      "rating",
-      "reviewsCount",
-    ],
+    path: "data/pricing-dataset.json",
+    title: "مشخصات کامل اقامتگاه‌ها",
+    feeds: "پروفایل اقامتگاه، نرخ پایه، امکانات، امتیاز، میزبان، انتخاب رقبا و تحلیل بازار",
+    caveat: "قیمت‌ها «نرخ هر شب از» هستند؛ قیمت هر شب مشخص در این فایل نیست.",
   },
   {
-    file: "reservations.csv",
-    title: "رزروها",
-    required: ["checkIn", "checkOut یا nights", "grossAmount"],
-    optional: ["id", "guests", "status", "platformFee", "discount", "refund", "note"],
+    path: "data/radar/{id}.json",
+    title: "تقویم شبانه رصدشده",
+    feeds: "تقویم قیمت، نرخ اشغال، درآمد پیش رو، شاخص قیمت بازار برای هر شب",
+    caveat: "فقط شب‌های آینده را پوشش می‌دهد؛ تاریخچه گذشته منتشر نمی‌شود.",
   },
   {
-    file: "blocked.csv",
-    title: "شب‌های مسدود",
-    required: ["date"],
-    optional: ["reason", "note"],
+    path: "data/manual-blocks.json",
+    title: "شب‌های بسته‌شده دستی",
+    feeds: "تفکیک شب رزروشده از شب بسته‌شده",
+    caveat: "بدون این فایل، هر شب غیرقابل رزرو اشتباهاً رزرو شمرده می‌شود.",
   },
   {
-    file: "expenses.csv",
-    title: "هزینه‌ها",
-    required: ["date", "amount"],
-    optional: ["id", "category", "note"],
+    path: "data/revenue/*.json",
+    title: "درآمد اقامتگاه‌های منطقه",
+    feeds: "رتبه‌بندی درآمد، کمیسیون، درآمد خالص",
+    caveat: "فقط یک بازه محقق‌شده ثبت شده؛ بقیه فایل‌ها رزروهای آینده‌اند.",
   },
   {
-    file: "prices.csv",
-    title: "قیمت روزانه",
-    required: ["date", "price"],
-    optional: ["available"],
+    path: "data/reviews/{id}_reviews.json",
+    title: "نظرات مهمانان",
+    feeds: "تحلیل نظرات، موضوع‌های تکرارشونده، نرخ پاسخ‌گویی",
+    caveat: "تعداد بازگشتی حدود ۱۰٪ کمتر از عدد روی کارت آگهی است.",
   },
   {
-    file: "views.csv",
-    title: "بازدیدها",
-    required: ["date", "views"],
-    optional: ["inquiries"],
-  },
-  {
-    file: "competitors.csv",
-    title: "رقبا",
-    required: ["title", "weekdayPrice"],
-    optional: [
-      "id",
-      "url",
-      "area",
-      "distanceKm",
-      "propertyType",
-      "capacity",
-      "bedrooms",
-      "builtAreaM2",
-      "weekendPrice",
-      "rating",
-      "reviewsCount",
-      "amenities",
-      "unavailableShare",
-    ],
+    path: "data/top_rooms_sweep.json",
+    title: "پویش گسترده استان",
+    feeds: "امتیاز جایگزین وقتی امتیاز اقامتگاه خالی است",
   },
 ];
 
 export default function DataPage() {
-  const dataset = loadDataset();
-  const realCount = dataset.reports.filter((r) => r.origin === "real").length;
-  const allIssues = dataset.reports.flatMap((r) =>
-    r.issues.map((issue) => ({ label: r.label, issue })),
-  );
+  const data = getDataset();
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="منبع داده و وضعیت بارگذاری"
-        description={`${formatNumber(realCount)} از ${formatNumber(
-          dataset.reports.length,
-        )} بخش از داده واقعی خوانده شده است. بقیه فعلاً روی داده نمایشی است.`}
+        title="منبع داده"
+        description="همه اعداد این داشبورد از داده واقعی جاجیگا خوانده می‌شوند. این صفحه نشان می‌دهد چه چیزی بارگذاری شده، چه چیزی نشده و چرا."
       />
 
-      {dataset.origin === "demo" ? (
-        <Notice tone="warning" title="هنوز هیچ فایل واقعی خوانده نشده است">
-          پوشه{" "}
-          <code className="rounded bg-black/30 px-1 py-0.5 font-mono text-[11px]">data/</code> در
-          ریشه پروژه را بسازید و فایل‌های خود را در آن بگذارید. برنامه به‌صورت خودکار آنها را
-          تشخیص می‌دهد و نیازی به تغییر کد نیست.
-        </Notice>
-      ) : dataset.origin === "mixed" ? (
-        <Notice title="داده ترکیبی">
-          بخشی از داده‌ها واقعی و بخشی نمایشی است. تا زمانی که همه بخش‌ها واقعی نشوند، اعداد ترکیبی
-          را با احتیاط تفسیر کنید.
+      {data.isEmpty ? (
+        <Notice tone="warning" title="دیتاست بارگذاری نشد">
+          اقامتگاه با شناسه ۳۲۹۷۵۸۵ در <code className="font-mono">data/pricing-dataset.json</code>{" "}
+          پیدا نشد. مطمئن شوید فایل‌های پوشه <code className="font-mono">data/</code> در جای خود
+          هستند.
         </Notice>
       ) : (
-        <Notice title="همه بخش‌ها از داده واقعی خوانده شده‌اند">
-          تحلیل‌های این داشبورد اکنون کاملاً بر پایه دیتاست شماست.
+        <Notice title="داده واقعی بارگذاری شد">
+          هیچ داده نمایشی یا ساختگی در این داشبورد استفاده نمی‌شود. تازه‌سازی داده توسط خط لوله
+          جداگانه میزبان انجام می‌شود و این برنامه فقط فایل‌های موجود را می‌خواند.
         </Notice>
       )}
 
-      {/* ------------------------------- Status ------------------------------- */}
-      <Card title="وضعیت هر بخش">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-2xl text-right">
-            <thead>
-              <tr className="border-b border-white/8">
-                <th className="px-3 py-2 text-[11px] font-bold text-slate-400">بخش</th>
-                <th className="px-3 py-2 text-[11px] font-bold text-slate-400">منبع</th>
-                <th className="px-3 py-2 text-[11px] font-bold text-slate-400">فایل</th>
-                <th className="px-3 py-2 text-[11px] font-bold text-slate-400">تعداد رکورد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataset.reports.map((report) => (
-                <tr key={report.key} className="border-b border-white/5 last:border-0">
-                  <td className="px-3 py-2.5 text-[12px] font-semibold text-slate-100">
-                    {report.label}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <Chip tone={report.origin === "real" ? "positive" : "warning"}>
-                      {report.origin === "real" ? "داده واقعی" : "داده نمایشی"}
-                    </Chip>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-[11px] text-slate-400" dir="ltr">
-                    {report.file ?? "—"}
-                  </td>
-                  <td className="num px-3 py-2.5 text-[12px] text-slate-300">
-                    {formatNumber(report.recordCount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {allIssues.length ? (
-        <Card title="هشدارهای اعتبارسنجی" subtitle="ردیف‌هایی که خوانده نشدند یا مقدار نامعتبر داشتند.">
-          <ul className="space-y-1.5">
-            {allIssues.slice(0, 20).map((item, index) => (
-              <li
-                key={`${item.label}-${index}`}
-                className="rounded-lg bg-rose-500/8 px-3 py-2 text-[11px] text-rose-100 ring-1 ring-rose-500/15"
-              >
-                <span className="font-bold">{item.label}</span> — {item.issue}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
-
-      <Card title="بازه و حجم داده فعلی">
+      <Card title="وضعیت بارگذاری">
         <DefinitionList
           items={[
-            { term: "شروع بازه", value: toJalaliLong(dataset.range.start) },
-            { term: "پایان بازه", value: toJalaliLong(dataset.range.end) },
-            { term: "تعداد رزرو", value: formatNumber(dataset.reservations.length) },
-            { term: "شب‌های مسدود", value: formatNumber(dataset.blockedNights.length) },
-            { term: "رکورد هزینه", value: formatNumber(dataset.expenses.length) },
-            { term: "رکورد قیمت روزانه", value: formatNumber(dataset.dailyPrices.length) },
-            { term: "رکورد بازدید", value: formatNumber(dataset.views.length) },
-            { term: "تعداد رقیب", value: formatNumber(dataset.competitors.length) },
+            {
+              term: "آخرین به‌روزرسانی تقویم",
+              value: data.fetchedAt
+                ? `${toJalaliLong(data.fetchedAt.slice(0, 10))}`
+                : "ثبت نشده",
+            },
+            { term: "تاریخ امروز در تحلیل", value: toJalaliLong(data.today) },
+            { term: "اقامتگاه‌های بارگذاری‌شده", value: `${formatNumber(data.rooms.length)} مورد` },
+            { term: "اقامتگاه‌های دارای تقویم رصد", value: `${formatNumber(data.radarRoomCount)} مورد` },
+            { term: "مجموعه مرجع مقایسه", value: `${formatNumber(data.peers.length)} اقامتگاه` },
+            { term: "رکوردهای پویش استانی", value: `${formatNumber(data.sweepCount)} ردیف` },
+            {
+              term: "شب‌های تقویم شما",
+              value: data.calendar.length
+                ? `${formatNumber(data.calendar.length)} شب — از ${toJalaliLong(
+                    data.calendarKpis.rangeStart,
+                  )} تا ${toJalaliLong(data.calendarKpis.rangeEnd)}`
+                : "تقویمی بارگذاری نشد",
+            },
+            {
+              term: "شب‌های دارای قیمت مرجع بازار",
+              value: `${formatNumber(data.marketNights.size)} شب`,
+            },
+            {
+              term: "بازه درآمد محقق‌شده",
+              value: data.realizedRange ?? "ثبت نشده",
+            },
+            {
+              term: "نظرات بارگذاری‌شده",
+              value: data.reviews ? `${formatNumber(data.reviews.count)} نظر` : "نظری یافت نشد",
+            },
           ]}
         />
       </Card>
 
-      {/* ------------------------------- Schema -------------------------------- */}
       <Card
-        title="ساختار فایل‌های قابل بارگذاری"
-        subtitle="هر فایل مستقل است؛ می‌توانید فقط بخشی از آنها را بگذارید. فرمت CSV و JSON هر دو پشتیبانی می‌شود."
+        title="خطاهای بارگذاری"
+        subtitle="فایل‌هایی که با ساختار مورد انتظار نخواندند و از تحلیل کنار گذاشته شدند."
       >
-        <div className="grid gap-3 lg:grid-cols-2">
-          {SCHEMA_GUIDE.map((schema) => (
-            <div key={schema.file} className="rounded-xl bg-white/4 p-3.5 ring-1 ring-white/6">
-              <div className="mb-2 flex items-baseline justify-between gap-2">
-                <h4 className="text-[12px] font-bold text-slate-100">{schema.title}</h4>
-                <code className="font-mono text-[10px] text-brand-300" dir="ltr">
-                  data/{schema.file}
+        {data.issues.length ? (
+          <ul className="space-y-2">
+            {data.issues.map((issue, index) => (
+              <li
+                key={`${issue.file}-${index}`}
+                className="rounded-lg bg-rose-500/8 p-3 ring-1 ring-rose-500/20"
+              >
+                <p className="font-mono text-[11px] text-rose-200">{issue.file}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">{issue.message}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-lg bg-emerald-500/8 p-3 text-[12px] text-emerald-200 ring-1 ring-emerald-500/20">
+            همه فایل‌های دیتاست بدون خطا خوانده شدند.
+          </p>
+        )}
+      </Card>
+
+      <Card title="نقش هر فایل در داشبورد">
+        <div className="space-y-3">
+          {FILE_GUIDE.map((file) => (
+            <div key={file.path} className="rounded-xl bg-white/4 p-3.5 ring-1 ring-white/6">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[12px] font-bold text-slate-100">{file.title}</span>
+                <code className="rounded bg-black/30 px-2 py-0.5 font-mono text-[10px] text-slate-400">
+                  {file.path}
                 </code>
               </div>
-              <p className="mb-1.5 text-[10px] font-bold text-slate-400">ستون‌های ضروری</p>
-              <div className="mb-2.5 flex flex-wrap gap-1">
-                {schema.required.map((column) => (
-                  <code
-                    key={column}
-                    dir="ltr"
-                    className="rounded bg-emerald-500/12 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300"
-                  >
-                    {column}
-                  </code>
-                ))}
-              </div>
-              <p className="mb-1.5 text-[10px] font-bold text-slate-400">ستون‌های اختیاری</p>
-              <div className="flex flex-wrap gap-1">
-                {schema.optional.map((column) => (
-                  <code
-                    key={column}
-                    dir="ltr"
-                    className="rounded bg-white/6 px-1.5 py-0.5 font-mono text-[10px] text-slate-400"
-                  >
-                    {column}
-                  </code>
-                ))}
-              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                <span className="text-slate-500">تغذیه می‌کند: </span>
+                {file.feeds}
+              </p>
+              {file.caveat ? (
+                <p className="mt-1.5 text-[11px] leading-relaxed text-amber-300/80">
+                  ⚠ {file.caveat}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
       </Card>
 
-      <Card title="نکات مهم بارگذاری">
+      <Card title="محدودیت‌هایی که باید بدانید">
         <ul className="space-y-2.5 text-[12px] leading-relaxed text-slate-300">
-          <li className="flex gap-2">
-            <span className="text-brand-400">•</span>
-            <span>
-              تاریخ‌ها می‌توانند شمسی (<code dir="ltr" className="font-mono text-[11px]">1404/05/26</code>) یا
-              میلادی (<code dir="ltr" className="font-mono text-[11px]">2025-08-17</code>) باشند؛ ارقام فارسی هم
-              پذیرفته می‌شود.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-brand-400">•</span>
-            <span>
-              مبالغ به تومان و بدون واحد وارد شوند. جداکننده هزارگان و کلمه «تومان» به‌صورت خودکار
-              حذف می‌شود.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-brand-400">•</span>
-            <span>
-              نام ستون‌ها می‌تواند فارسی باشد؛ مثلاً «تاریخ ورود»، «مبلغ کل»، «امکانات». تطبیق نام
-              ستون‌ها فازی است و به فاصله و خط تیره حساس نیست.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-brand-400">•</span>
-            <span>
-              فهرست‌ها (مثل امکانات) را با ویرگول، خط عمودی یا نقطه‌ویرگول جدا کنید.
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-amber-400">•</span>
-            <span>
-              پوشه <code dir="ltr" className="font-mono text-[11px]">data/</code> در گیت نادیده گرفته می‌شود تا
-              اطلاعات مالی و رزرو خصوصی شما وارد مخزن نشود.
-            </span>
-          </li>
+          {[
+            "جاجیگا تاریخچه رزروهای گذشته را منتشر نمی‌کند؛ همه شاخص‌های اشغال و درآمد به شب‌های آینده و یک بازه محقق‌شده محدودند.",
+            "امتیاز نمایش‌داده‌شده روی آگهی میانگین ۱۲ ماه اخیر است، نه کل تاریخچه.",
+            "غیرقابل رزرو بودن یک شب می‌تواند رزرو یا بستن دستی باشد؛ این برنامه با فایل شب‌های بسته‌شده آن‌ها را تفکیک می‌کند.",
+            "تعداد نظرهای دریافتی از رابط برنامه‌نویسی معمولاً کمی کمتر از عدد روی کارت آگهی است.",
+            "کمیسیون ۱۲٪ روی مبلغ پس از تخفیف محاسبه می‌شود و درآمد خالص پس از کسر آن است.",
+            "تعطیلات تنها شامل تعطیلات ثابت شمسی است و تعطیلات قمری در محاسبه قیمت لحاظ نشده‌اند.",
+          ].map((item) => (
+            <li key={item} className="flex gap-2">
+              <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-slate-600" />
+              <span>{item}</span>
+            </li>
+          ))}
         </ul>
+      </Card>
+
+      <Card title="به‌روزرسانی داده">
+        <p className="text-[12px] leading-relaxed text-slate-300">
+          داده‌ها به صورت فایل ثابت در پوشه <code className="font-mono">data/</code> نگهداری می‌شوند
+          و این برنامه هیچ درخواستی به جاجیگا نمی‌فرستد. برای تازه‌سازی، خط لوله جداگانه میزبان اجرا
+          و فایل‌ها جایگزین می‌شوند؛ برنامه در راه‌اندازی بعدی آن‌ها را می‌خواند.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Chip tone="brand">بدون فراخوانی زنده</Chip>
+          <Chip tone="positive">قابل بازتولید</Chip>
+          <Chip>راهنمای کامل: docs/DATA-GUIDE.md</Chip>
+        </div>
       </Card>
     </div>
   );

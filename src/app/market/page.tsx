@@ -1,114 +1,96 @@
 import { PositioningChart, PriceComparisonChart, RatingRadar } from "@/components/charts";
 import { Card, Chip, DefinitionList, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
-import { loadDataset } from "@/lib/load-dataset";
-import {
-  computeMarketPosition,
-  formatNumber,
-  formatPercent,
-  formatToman,
-  rankCompetitors,
-} from "@/lib/metrics";
+import { getDataset } from "@/lib/jajiga/dataset";
+import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "مقایسه بازار" };
 
 export default function MarketPage() {
-  const dataset = loadDataset();
-  const { property } = dataset;
+  const data = getDataset();
+  const { owner, market, peers } = data;
 
-  const ranked = rankCompetitors(property, dataset.competitors);
-  // Benchmark only against listings that are genuinely comparable.
-  const peers = ranked.filter((c) => c.similarity >= 0.55);
-  const benchmarkSet = peers.length >= 3 ? peers : ranked.slice(0, Math.min(6, ranked.length));
-  const market = computeMarketPosition(property, benchmarkSet);
+  if (data.isEmpty) {
+    return <Notice tone="warning">داده‌ای برای تحلیل بازار موجود نیست.</Notice>;
+  }
 
-  const hostWeekend = property.weekendPrice ?? property.basePrice;
-  const weekdayGap = market.medianWeekday
-    ? (property.basePrice - market.medianWeekday) / market.medianWeekday
-    : 0;
-  const weekendGap = market.medianWeekend
-    ? (hostWeekend - market.medianWeekend) / market.medianWeekend
+  const priceGap = market.medianPrice
+    ? (owner.basePrice - market.medianPrice) / market.medianPrice
     : 0;
 
   const priceChartData = [
-    {
-      name: "اقامتگاه شما",
-      weekday: property.basePrice,
-      weekend: hostWeekend,
-      isHost: true,
-    },
-    ...benchmarkSet.map((c) => ({
-      name: c.title.length > 24 ? `${c.title.slice(0, 23)}…` : c.title,
-      weekday: c.weekdayPrice,
-      weekend: c.weekendPrice ?? c.weekdayPrice,
+    { name: "اقامتگاه شما", weekday: owner.basePrice, weekend: owner.basePrice, isHost: true },
+    ...peers.slice(0, 14).map((peer) => ({
+      name: peer.title.length > 24 ? `${peer.title.slice(0, 23)}…` : peer.title,
+      weekday: peer.basePrice,
+      weekend: peer.basePrice,
       isHost: false,
     })),
   ];
 
-  const scatterCompetitors = benchmarkSet
-    .filter((c) => typeof c.rating === "number")
-    .map((c) => ({
-      name: c.title,
-      price: c.weekdayPrice,
-      rating: c.rating ?? 0,
-      reviews: c.reviewsCount ?? 1,
+  const scatter = peers
+    .filter((peer) => peer.rating !== null)
+    .map((peer) => ({
+      name: peer.title,
+      price: peer.basePrice,
+      rating: peer.rating as number,
+      reviews: Math.max(peer.reviewsCount, 1),
     }));
 
-  const radarData = property.ratingBreakdown
-    ? [
-        { subject: "دقت آگهی", score: property.ratingBreakdown.accuracy ?? 0 },
-        { subject: "برخورد میزبان", score: property.ratingBreakdown.hostBehavior ?? 0 },
-        { subject: "نظافت", score: property.ratingBreakdown.cleanliness ?? 0 },
-        { subject: "موقعیت", score: property.ratingBreakdown.location ?? 0 },
-        { subject: "تحویل به‌موقع", score: property.ratingBreakdown.handover ?? 0 },
-        { subject: "ارزش خرید", score: property.ratingBreakdown.valueForMoney ?? 0 },
-      ].filter((d) => d.score > 0)
-    : [];
+  const radarData = [
+    { subject: "دقت آگهی", score: owner.subRatings.accuracy },
+    { subject: "برخورد میزبان", score: owner.subRatings.communication },
+    { subject: "نظافت", score: owner.subRatings.cleanliness },
+    { subject: "موقعیت", score: owner.subRatings.location },
+    { subject: "تحویل", score: owner.subRatings.checkin },
+    { subject: "ارزش خرید", score: owner.subRatings.value },
+  ].filter((d): d is { subject: string; score: number } => d.score !== null);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="مقایسه با بازار محلی"
-        description={`جایگاه «${property.title}» در برابر ${formatNumber(
-          benchmarkSet.length,
-        )} اقامتگاه واقعاً مشابه، بر پایه ظرفیت، تعداد اتاق، فاصله، نوع اقامتگاه و امکانات.`}
+        description={`جایگاه «${owner.title}» در برابر ${formatNumber(
+          peers.length,
+        )} اقامتگاه واقعاً مشابه، انتخاب‌شده بر پایه ظرفیت، اتاق، فاصله جغرافیایی، نوع اقامتگاه و امکانات.`}
       />
 
       <Notice>
-        قیمت‌های رقبا نرخ اعلام‌شده عمومی هستند و ممکن است شامل تخفیف لحظه‌ای، هزینه نفر اضافه یا
-        قوانین حداقل اقامت نباشند. این مقایسه یک برآورد جهت‌دهنده است، نه قیمت نهایی بازار.
+        قیمت‌ها نرخ پایه («نرخ هر شب از») هستند، نه قیمت تخفیف‌خورده لحظه‌ای. امتیاز نمایش‌داده‌شده
+        جاجیگا میانگین <strong>۱۲ ماه اخیر</strong> است و نه کل تاریخچه — این را در مقایسه‌ها در نظر
+        بگیرید.
       </Notice>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
-          label="صدک قیمت روز عادی"
-          value={formatNumber(market.weekdayPercentile)}
-          hint={`میانه بازار ${formatToman(market.medianWeekday)}`}
+          label="نرخ پایه شما"
+          value={formatToman(owner.basePrice)}
+          hint={`میانه بازار ${formatToman(market.medianPrice)}`}
           tone="brand"
         />
         <KpiCard
-          label="صدک قیمت آخر هفته"
-          value={formatNumber(market.weekendPercentile)}
-          hint={`میانه بازار ${formatToman(market.medianWeekend)}`}
+          label="اختلاف با میانه"
+          value={`${priceGap >= 0 ? "+" : "−"}${formatPercent(Math.abs(priceGap))}`}
+          hint={`بازه رایج ${formatToman(market.p25)} تا ${formatToman(market.p75)}`}
+          tone={Math.abs(priceGap) > 0.2 ? "warning" : "default"}
         />
         <KpiCard
-          label="اختلاف با میانه (روز عادی)"
-          value={`${weekdayGap >= 0 ? "+" : "−"}${formatPercent(Math.abs(weekdayGap))}`}
-          hint={formatToman(property.basePrice)}
-          tone={Math.abs(weekdayGap) > 0.2 ? "warning" : "default"}
+          label="صدک قیمت"
+          value={formatNumber(market.pricePercentile)}
+          hint={`${formatNumber(market.sampleSize)} اقامتگاه مرجع`}
         />
         <KpiCard
-          label="اختلاف با میانه (آخر هفته)"
-          value={`${weekendGap >= 0 ? "+" : "−"}${formatPercent(Math.abs(weekendGap))}`}
-          hint={formatToman(hostWeekend)}
-          tone={Math.abs(weekendGap) > 0.2 ? "warning" : "default"}
+          label="صدک امتیاز"
+          value={formatNumber(market.ratingPercentile)}
+          hint={`امتیاز شما ${formatNumber(owner.rating ?? 0, 1)}`}
+          tone="positive"
         />
       </div>
 
       <Card
-        title="مقایسه قیمت شبانه"
-        subtitle="میله فیروزه‌ای و نارنجی پررنگ متعلق به اقامتگاه شماست؛ میله بالایی روز عادی و پایینی آخر هفته."
+        title="مقایسه نرخ پایه با رقبای مشابه"
+        subtitle="میله پررنگ متعلق به اقامتگاه شماست."
       >
         <PriceComparisonChart data={priceChartData} />
       </Card>
@@ -116,52 +98,48 @@ export default function MarketPage() {
       <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
         <Card
           title="نقشه جایگاه: قیمت در برابر امتیاز"
-          subtitle="اندازه هر نقطه نشان‌دهنده تعداد نظرات است. ستاره فیروزه‌ای اقامتگاه شماست."
+          subtitle="اندازه هر نقطه نشان‌دهنده تعداد نظرات است. ستاره فیروزه‌ای شمایید."
         >
-          {scatterCompetitors.length >= 2 ? (
+          {scatter.length >= 2 ? (
             <PositioningChart
-              competitors={scatterCompetitors}
+              competitors={scatter}
               host={{
-                name: property.title,
-                price: property.basePrice,
-                rating: property.rating ?? 0,
-                reviews: property.reviewsCount ?? 1,
+                name: owner.title,
+                price: owner.basePrice,
+                rating: owner.rating ?? 0,
+                reviews: Math.max(owner.reviewsCount, 1),
               }}
             />
           ) : (
-            <p className="py-16 text-center text-[12px] text-slate-500">
-              برای رسم این نمودار حداقل به امتیاز دو رقیب نیاز است.
-            </p>
+            <p className="py-16 text-center text-[12px] text-slate-500">داده کافی موجود نیست.</p>
           )}
         </Card>
 
-        <Card title="ریز امتیازهای شما" subtitle="نقطه‌ای که از بقیه عقب‌تر است، اولویت بهبود است.">
+        <Card title="ریز امتیازهای شما" subtitle="ضعیف‌ترین ضلع، اولویت بهبود است.">
           {radarData.length ? (
             <RatingRadar data={radarData} />
           ) : (
-            <p className="py-16 text-center text-[12px] text-slate-500">
-              ریز امتیازها هنوز ثبت نشده است.
-            </p>
+            <p className="py-16 text-center text-[12px] text-slate-500">ریز امتیاز موجود نیست.</p>
           )}
         </Card>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card
-          title="امکاناتی که ندارید"
-          subtitle="امکاناتی که دست‌کم ۳۰٪ رقبای مشابه دارند و در آگهی شما ثبت نشده است."
+          title="امکاناتی که رقبا دارند و شما ندارید"
+          subtitle="دست‌کم ۲۵٪ رقبای مشابه این موارد را دارند."
         >
-          {market.missingAmenities.length ? (
+          {market.missingFeatures.length ? (
             <ul className="space-y-3">
-              {market.missingAmenities.map((amenity) => (
-                <li key={amenity.name}>
+              {market.missingFeatures.map((feature) => (
+                <li key={feature.code}>
                   <div className="mb-1 flex items-baseline justify-between gap-2">
-                    <span className="text-[12px] text-slate-200">{amenity.name}</span>
+                    <span className="text-[12px] text-slate-200">{feature.label}</span>
                     <span className="num text-[11px] font-semibold text-amber-300">
-                      {formatPercent(amenity.share)} رقبا
+                      {formatPercent(feature.share)} رقبا
                     </span>
                   </div>
-                  <Meter value={amenity.share} tone="warning" />
+                  <Meter value={feature.share} tone="warning" />
                 </li>
               ))}
             </ul>
@@ -173,23 +151,36 @@ export default function MarketPage() {
         </Card>
 
         <Card
-          title="مزیت‌های متمایز شما"
-          subtitle="امکاناتی که کمتر از ۴۰٪ رقبا دارند — اینها باید در عنوان آگهی برجسته شوند."
+          title="مزیت‌های نسبی شما"
+          subtitle="امکاناتی که کمتر از ۴۵٪ رقبا دارند — در عنوان آگهی برجسته‌شان کنید."
         >
-          {market.uniqueAmenities.length ? (
+          {market.uniqueFeatures.length ? (
             <div className="flex flex-wrap gap-2">
-              {market.uniqueAmenities.map((amenity) => (
-                <Chip key={amenity.name} tone="positive">
-                  {amenity.name}
-                  <span className="num opacity-70">{formatPercent(amenity.share)}</span>
+              {market.uniqueFeatures.map((feature) => (
+                <Chip key={feature.code} tone="positive">
+                  {feature.label}
+                  <span className="num opacity-70">{formatPercent(feature.share)}</span>
                 </Chip>
               ))}
             </div>
           ) : (
             <p className="py-8 text-center text-[12px] text-slate-500">
-              امکانات شما تقریباً مشابه بقیه بازار است؛ تمایز را باید در تصاویر و خدمات ساخت.
+              امکانات شما تقریباً مشابه بقیه بازار است؛ تمایز را باید در تصاویر و کیفیت میزبانی ساخت.
             </p>
           )}
+
+          <div className="mt-4 border-t border-white/8 pt-3">
+            <p className="mb-2 text-[11px] font-bold text-slate-400">نشان‌های آگهی شما</p>
+            <div className="flex flex-wrap gap-1.5">
+              {owner.isPlus ? <Chip tone="warning">ممتاز</Chip> : null}
+              {owner.isInstant ? <Chip tone="brand">رزرو فوری</Chip> : null}
+              {owner.badges.map((badge) => (
+                <Chip key={badge} tone="positive">
+                  {badge}
+                </Chip>
+              ))}
+            </div>
+          </div>
         </Card>
       </div>
 
@@ -197,23 +188,28 @@ export default function MarketPage() {
         <DefinitionList
           items={[
             { term: "تعداد اقامتگاه مرجع", value: formatNumber(market.sampleSize) },
-            { term: "میانه قیمت روز عادی", value: formatToman(market.medianWeekday) },
-            { term: "میانه قیمت آخر هفته", value: formatToman(market.medianWeekend) },
-            { term: "بازه رایج (صدک ۲۵ تا ۷۵)", value: `${formatToman(market.p25Weekday)} — ${formatToman(market.p75Weekday)}` },
+            { term: "میانه نرخ پایه", value: formatToman(market.medianPrice) },
+            { term: "صدک ۲۵ بازار", value: formatToman(market.p25) },
+            { term: "صدک ۷۵ بازار", value: formatToman(market.p75) },
             { term: "میانه امتیاز", value: formatNumber(market.medianRating, 1) },
             { term: "میانه تعداد نظر", value: formatNumber(market.medianReviews) },
             {
-              term: "برآورد پر بودن تقویم رقبا",
+              term: "میانه پر بودن تقویم ۳۰ روز",
               value:
-                market.availabilityEstimate === null
-                  ? "بدون داده"
-                  : `${formatPercent(market.availabilityEstimate)} (تخمینی)`,
+                market.medianOccupancy !== null
+                  ? `${formatPercent(market.medianOccupancy)} (تخمینی)`
+                  : "بدون داده",
+            },
+            {
+              term: "پر بودن تقویم شما",
+              value:
+                market.ownerOccupancy !== null ? formatPercent(market.ownerOccupancy) : "بدون داده",
             },
           ]}
         />
         <p className="mt-4 rounded-lg bg-white/4 p-3 text-[11px] leading-relaxed text-slate-400">
-          «برآورد پر بودن تقویم» فقط نشان می‌دهد چه سهمی از شب‌های عمومی رقبا قابل رزرو نبوده است.
-          بسته‌بودن یک شب لزوماً به‌معنای فروش آن نیست؛ ممکن است میزبان آن را دستی مسدود کرده باشد.
+          «پر بودن تقویم» فقط نشان می‌دهد چه سهمی از ۳۰ شب آینده قابل رزرو نبوده است. بسته‌بودن یک
+          شب لزوماً یعنی فروش نیست؛ ممکن است میزبان آن را دستی بسته باشد.
         </p>
       </Card>
     </div>

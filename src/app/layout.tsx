@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { AppShell } from "@/components/app-shell";
-import { loadDataset } from "@/lib/load-dataset";
+import { getDataset } from "@/lib/jajiga/dataset";
 
 import "./globals.css";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | میزبان‌یار",
   },
   description:
-    "داشبورد تحلیل عملکرد، قیمت‌گذاری و رقبای اقامتگاه برای میزبانان جاجیگا — از بابلکنار مازندران تا سراسر ایران.",
+    "داشبورد تحلیل عملکرد، قیمت‌گذاری و رقبای اقامتگاه برای میزبانان جاجیگا — بر پایه داده واقعی بابلکنار مازندران.",
   applicationName: "میزبان‌یار",
   keywords: ["میزبان‌یار", "جاجیگا", "اقامتگاه", "بابلکنار", "تحلیل قیمت", "اجاره کوتاه‌مدت"],
 };
@@ -21,15 +21,15 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const dataset = loadDataset();
+  const dataset = getDataset();
 
   return (
     <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body className="antialiased">
         <AppShell
-          propertyTitle={dataset.property.title}
-          propertyArea={`${dataset.property.city} — ${dataset.property.area}`}
-          origin={dataset.origin}
+          propertyTitle={dataset.owner.title}
+          propertyArea={`${dataset.owner.village} — بابلکنار`}
+          origin={dataset.isEmpty ? "missing" : "real"}
         >
           {children}
         </AppShell>

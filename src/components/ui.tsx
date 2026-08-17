@@ -116,9 +116,11 @@ export function KpiCard({
 export function Chip({
   children,
   tone = "neutral",
+  className = "",
 }: {
   children: ReactNode;
   tone?: "neutral" | "brand" | "positive" | "warning" | "danger";
+  className?: string;
 }) {
   const styles = {
     neutral: "bg-white/6 text-slate-300 ring-white/10",
@@ -130,7 +132,7 @@ export function Chip({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${styles}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${styles} ${className}`}
     >
       {children}
     </span>

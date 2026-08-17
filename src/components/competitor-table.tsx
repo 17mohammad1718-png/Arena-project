@@ -3,38 +3,47 @@
 import { useMemo, useState } from "react";
 
 import { Chip } from "./ui";
+import type { CompetitorMatch } from "@/lib/jajiga/analytics";
+import type { RoomProfile } from "@/lib/jajiga/load";
 import { formatNumber, formatPercent, formatToman, median } from "@/lib/metrics";
-import type { CompetitorMatch } from "@/lib/metrics";
-import type { Property } from "@/lib/types";
 
-type SortKey = "similarity" | "weekdayPrice" | "weekendPrice" | "rating" | "reviewsCount" | "distanceKm";
+type SortKey =
+  | "similarity"
+  | "basePrice"
+  | "rating"
+  | "reviewsCount"
+  | "distanceKm"
+  | "occupancy30"
+  | "successBooks";
 
-const COLUMNS: { key: SortKey; label: string; numeric: boolean }[] = [
-  { key: "similarity", label: "شباهت", numeric: true },
-  { key: "distanceKm", label: "فاصله", numeric: true },
-  { key: "weekdayPrice", label: "روز عادی", numeric: true },
-  { key: "weekendPrice", label: "آخر هفته", numeric: true },
-  { key: "rating", label: "امتیاز", numeric: true },
-  { key: "reviewsCount", label: "نظرات", numeric: true },
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "similarity", label: "شباهت" },
+  { key: "distanceKm", label: "فاصله" },
+  { key: "basePrice", label: "نرخ پایه" },
+  { key: "rating", label: "امتیاز" },
+  { key: "reviewsCount", label: "نظرات" },
+  { key: "occupancy30", label: "پر بودن ۳۰ شب" },
+  { key: "successBooks", label: "رزرو موفق" },
 ];
 
 export function CompetitorTable({
   competitors,
-  property,
+  owner,
 }: {
   competitors: CompetitorMatch[];
-  property: Property;
+  owner: RoomProfile;
 }) {
   const [query, setQuery] = useState("");
-  const [type, setType] = useState("all");
+  const [village, setVillage] = useState("all");
   const [minCapacity, setMinCapacity] = useState(0);
   const [maxDistance, setMaxDistance] = useState(0);
+  const [onlySimilar, setOnlySimilar] = useState(true);
   const [sort, setSort] = useState<SortKey>("similarity");
   const [descending, setDescending] = useState(true);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const types = useMemo(
-    () => [...new Set(competitors.map((c) => c.propertyType))].sort(),
+  const villages = useMemo(
+    () => [...new Set(competitors.map((c) => c.village))].filter(Boolean).sort(),
     [competitors],
   );
 
@@ -42,37 +51,42 @@ export function CompetitorTable({
     const q = query.trim();
     return competitors
       .filter((c) => {
-        if (q && !`${c.title} ${c.area}`.includes(q)) return false;
-        if (type !== "all" && c.propertyType !== type) return false;
+        if (q && !`${c.title} ${c.village}`.includes(q)) return false;
+        if (village !== "all" && c.village !== village) return false;
         if (minCapacity && c.capacity < minCapacity) return false;
         if (maxDistance && (c.distanceKm ?? 999) > maxDistance) return false;
+        if (onlySimilar && c.similarity < 0.7) return false;
         return true;
       })
       .sort((a, b) => {
-        const av = (a[sort] as number | undefined) ?? -Infinity;
-        const bv = (b[sort] as number | undefined) ?? -Infinity;
+        const av = (a[sort] as number | null) ?? -Infinity;
+        const bv = (b[sort] as number | null) ?? -Infinity;
         return descending ? bv - av : av - bv;
       });
-  }, [competitors, query, type, minCapacity, maxDistance, sort, descending]);
+  }, [competitors, query, village, minCapacity, maxDistance, onlySimilar, sort, descending]);
 
   const selectedRows = filtered.filter((c) => selected.has(c.id));
   const comparisonSet = selectedRows.length ? selectedRows : filtered;
 
   const stats = useMemo(() => {
-    const weekday = comparisonSet.map((c) => c.weekdayPrice).filter((p) => p > 0);
-    const weekend = comparisonSet.map((c) => c.weekendPrice ?? c.weekdayPrice).filter((p) => p > 0);
+    const prices = comparisonSet.map((c) => c.basePrice).filter((p) => p > 0);
     const ratings = comparisonSet
       .map((c) => c.rating)
       .filter((r): r is number => typeof r === "number");
+    const occupancies = comparisonSet
+      .map((c) => c.occupancy30)
+      .filter((o): o is number => typeof o === "number");
+    const books = comparisonSet.map((c) => c.successBooks).filter((b) => b > 0);
     return {
       count: comparisonSet.length,
-      medianWeekday: median(weekday),
-      medianWeekend: median(weekend),
+      medianPrice: median(prices),
       medianRating: median(ratings),
+      medianOccupancy: occupancies.length ? median(occupancies) : null,
+      medianBooks: median(books),
     };
   }, [comparisonSet]);
 
-  const toggle = (id: string) => {
+  const toggle = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -81,12 +95,8 @@ export function CompetitorTable({
     });
   };
 
-  const hostWeekend = property.weekendPrice ?? property.basePrice;
-  const weekdayGap = stats.medianWeekday
-    ? (property.basePrice - stats.medianWeekday) / stats.medianWeekday
-    : 0;
-  const weekendGap = stats.medianWeekend
-    ? (hostWeekend - stats.medianWeekend) / stats.medianWeekend
+  const priceGap = stats.medianPrice
+    ? (owner.basePrice - stats.medianPrice) / stats.medianPrice
     : 0;
 
   return (
@@ -95,26 +105,26 @@ export function CompetitorTable({
       <div className="card p-3.5">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="block">
-            <span className="mb-1 block text-[11px] text-slate-400">جستجو در نام یا منطقه</span>
+            <span className="mb-1 block text-[11px] text-slate-400">جستجو در نام یا روستا</span>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="مثلاً بابلکنار"
+              placeholder="مثلاً کلبه سوئیسی"
               className="w-full rounded-lg border border-white/10 bg-ink-850 px-3 py-2 text-[12px] text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-brand-400/50"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-[11px] text-slate-400">نوع اقامتگاه</span>
+            <span className="mb-1 block text-[11px] text-slate-400">روستا</span>
             <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
+              value={village}
+              onChange={(e) => setVillage(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-ink-850 px-3 py-2 text-[12px] text-slate-100 outline-none focus:border-brand-400/50"
             >
               <option value="all">همه</option>
-              {types.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {villages.map((v) => (
+                <option key={v} value={v}>
+                  {v}
                 </option>
               ))}
             </select>
@@ -122,12 +132,15 @@ export function CompetitorTable({
 
           <label className="block">
             <span className="mb-1 block text-[11px] text-slate-400">
-              حداقل ظرفیت: <span className="num text-slate-200">{minCapacity || "—"}</span>
+              حداقل ظرفیت:{" "}
+              <span className="num text-slate-200">
+                {minCapacity ? formatNumber(minCapacity) : "—"}
+              </span>
             </span>
             <input
               type="range"
               min={0}
-              max={10}
+              max={12}
               value={minCapacity}
               onChange={(e) => setMinCapacity(Number(e.target.value))}
               className="mt-2 w-full accent-cyan-400"
@@ -144,8 +157,8 @@ export function CompetitorTable({
             <input
               type="range"
               min={0}
-              max={40}
-              step={2}
+              max={20}
+              step={1}
               value={maxDistance}
               onChange={(e) => setMaxDistance(Number(e.target.value))}
               className="mt-2 w-full accent-cyan-400"
@@ -154,16 +167,30 @@ export function CompetitorTable({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/8 pt-3">
-          <p className="text-[11px] text-slate-400">
-            <span className="num font-bold text-slate-200">{formatNumber(filtered.length)}</span> رقیب
-            نمایش داده می‌شود
-            {selected.size ? (
-              <>
-                {" "}— <span className="num font-bold text-brand-300">{formatNumber(selected.size)}</span>{" "}
-                مورد برای مقایسه انتخاب شده
-              </>
-            ) : null}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-[11px] text-slate-300">
+              <input
+                type="checkbox"
+                checked={onlySimilar}
+                onChange={(e) => setOnlySimilar(e.target.checked)}
+                className="size-3.5 accent-cyan-400"
+              />
+              فقط اقامتگاه‌های واقعاً مشابه (شباهت بالای ۷۰٪)
+            </label>
+            <p className="text-[11px] text-slate-400">
+              <span className="num font-bold text-slate-200">{formatNumber(filtered.length)}</span>{" "}
+              نتیجه
+              {selected.size ? (
+                <>
+                  {" "}—{" "}
+                  <span className="num font-bold text-brand-300">
+                    {formatNumber(selected.size)}
+                  </span>{" "}
+                  انتخاب‌شده
+                </>
+              ) : null}
+            </p>
+          </div>
           {selected.size ? (
             <button
               type="button"
@@ -179,36 +206,48 @@ export function CompetitorTable({
       {/* ------------------------------ Comparison ------------------------------ */}
       <div className="card p-4">
         <h3 className="mb-3 text-sm font-bold text-slate-100">
-          {selectedRows.length ? "مقایسه با مجموعه انتخابی" : "مقایسه با همه رقبای فیلترشده"}
+          {selectedRows.length ? "مقایسه با مجموعه انتخابی" : "مقایسه با همه نتایج فیلترشده"}
         </h3>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <CompareCell
-            label="قیمت روز عادی شما"
-            value={formatToman(property.basePrice)}
-            compare={`میانه ${formatToman(stats.medianWeekday)}`}
-            gap={weekdayGap}
-          />
-          <CompareCell
-            label="قیمت آخر هفته شما"
-            value={formatToman(hostWeekend)}
-            compare={`میانه ${formatToman(stats.medianWeekend)}`}
-            gap={weekendGap}
+            label="نرخ پایه شما"
+            value={formatToman(owner.basePrice)}
+            compare={`میانه ${formatToman(stats.medianPrice)}`}
+            gap={priceGap}
           />
           <CompareCell
             label="امتیاز شما"
-            value={formatNumber(property.rating ?? 0, 1)}
+            value={formatNumber(owner.rating ?? 0, 1)}
             compare={`میانه ${formatNumber(stats.medianRating, 1)}`}
             gap={
               stats.medianRating
-                ? ((property.rating ?? 0) - stats.medianRating) / stats.medianRating
+                ? ((owner.rating ?? 0) - stats.medianRating) / stats.medianRating
                 : 0
             }
           />
           <CompareCell
-            label="ظرفیت شما"
-            value={`${formatNumber(property.capacity)} نفر`}
-            compare={`+${formatNumber(property.extraCapacity)} نفر اضافه`}
-            gap={null}
+            label="رزروهای موفق شما"
+            value={formatNumber(owner.successBooks)}
+            compare={`میانه ${formatNumber(stats.medianBooks)}`}
+            gap={
+              stats.medianBooks
+                ? (owner.successBooks - stats.medianBooks) / stats.medianBooks
+                : null
+            }
+          />
+          <CompareCell
+            label="پر بودن تقویم شما"
+            value={owner.occupancy30 !== null ? formatPercent(owner.occupancy30) : "—"}
+            compare={
+              stats.medianOccupancy !== null
+                ? `میانه ${formatPercent(stats.medianOccupancy)}`
+                : "بدون داده"
+            }
+            gap={
+              owner.occupancy30 !== null && stats.medianOccupancy
+                ? (owner.occupancy30 - stats.medianOccupancy) / stats.medianOccupancy
+                : null
+            }
           />
         </div>
       </div>
@@ -216,7 +255,7 @@ export function CompetitorTable({
       {/* --------------------------------- Table -------------------------------- */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-4xl text-right">
+          <table className="w-full min-w-[900px] text-right">
             <thead>
               <tr className="border-b border-white/8 bg-white/3">
                 <th className="w-10 px-3 py-2.5" />
@@ -234,132 +273,160 @@ export function CompetitorTable({
                         }
                       }}
                       className={`inline-flex items-center gap-1 text-[11px] font-bold transition ${
-                        sort === column.key ? "text-brand-300" : "text-slate-400 hover:text-slate-200"
+                        sort === column.key
+                          ? "text-brand-300"
+                          : "text-slate-400 hover:text-slate-200"
                       }`}
                     >
                       {column.label}
-                      {sort === column.key ? <span>{descending ? "▾" : "▴"}</span> : null}
+                      {sort === column.key ? <span>{descending ? "↓" : "↑"}</span> : null}
                     </button>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((competitor) => {
-                const isSelected = selected.has(competitor.id);
+              {filtered.map((room) => {
+                const isSelected = selected.has(room.id);
                 return (
                   <tr
-                    key={competitor.id}
-                    className={`border-b border-white/5 transition last:border-0 ${
-                      isSelected ? "bg-brand-500/8" : "hover:bg-white/3"
+                    key={room.id}
+                    className={`border-b border-white/5 transition last:border-0 hover:bg-white/3 ${
+                      isSelected ? "bg-brand-500/6" : ""
                     }`}
                   >
                     <td className="px-3 py-2.5">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => toggle(competitor.id)}
-                        className="size-3.5 accent-cyan-500"
-                        aria-label={`انتخاب ${competitor.title}`}
+                        onChange={() => toggle(room.id)}
+                        className="size-3.5 accent-cyan-400"
                       />
                     </td>
                     <td className="px-3 py-2.5">
-                      <p className="text-[12px] font-semibold text-slate-100">
-                        {competitor.url ? (
-                          <a
-                            href={competitor.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="hover:text-brand-300"
+                      <a
+                        href={room.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block max-w-[280px] truncate text-[12px] font-medium text-slate-200 transition hover:text-brand-300"
+                        title={room.title}
+                      >
+                        {room.title}
+                      </a>
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-500">{room.village}</span>
+                        {room.reasons.slice(0, 2).map((reason) => (
+                          <span
+                            key={reason}
+                            className="rounded bg-white/6 px-1.5 py-0.5 text-[9px] text-slate-400"
                           >
-                            {competitor.title}
-                          </a>
-                        ) : (
-                          competitor.title
-                        )}
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-slate-500">
-                        {competitor.area} · {competitor.propertyType}
-                      </p>
-                    </td>
-                    <td className="num px-3 py-2.5 text-[12px] text-slate-300">
-                      {formatNumber(competitor.capacity)} / {formatNumber(competitor.bedrooms)}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-10 overflow-hidden rounded-full bg-white/8">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-l from-brand-400 to-brand-600"
-                            style={{ width: `${competitor.similarity * 100}%` }}
-                          />
-                        </div>
-                        <span className="num text-[11px] text-slate-400">
-                          {formatPercent(competitor.similarity)}
-                        </span>
+                            {reason}
+                          </span>
+                        ))}
                       </div>
                     </td>
                     <td className="num px-3 py-2.5 text-[12px] text-slate-300">
-                      {competitor.distanceKm !== undefined
-                        ? `${formatNumber(competitor.distanceKm, 1)} کیلومتر`
-                        : "—"}
+                      {formatNumber(room.capacity)} / {formatNumber(room.bedrooms)}
                     </td>
-                    <td className="num px-3 py-2.5 text-[12px] font-semibold text-slate-100">
-                      {formatToman(competitor.weekdayPrice)}
-                    </td>
-                    <td className="num px-3 py-2.5 text-[12px] text-amber-200">
-                      {formatToman(competitor.weekendPrice ?? competitor.weekdayPrice)}
-                    </td>
-                    <td className="num px-3 py-2.5 text-[12px] text-slate-300">
-                      {competitor.rating !== undefined ? formatNumber(competitor.rating, 1) : "—"}
+                    <td className="px-3 py-2.5">
+                      <span
+                        className={`num text-[12px] font-bold ${
+                          room.similarity >= 0.8
+                            ? "text-emerald-300"
+                            : room.similarity >= 0.7
+                              ? "text-slate-200"
+                              : "text-slate-500"
+                        }`}
+                      >
+                        {formatPercent(room.similarity)}
+                      </span>
                     </td>
                     <td className="num px-3 py-2.5 text-[12px] text-slate-400">
-                      {competitor.reviewsCount !== undefined
-                        ? formatNumber(competitor.reviewsCount)
-                        : "—"}
+                      {room.distanceKm !== null ? `${formatNumber(room.distanceKm, 1)} کیلومتر` : "—"}
+                    </td>
+                    <td className="num px-3 py-2.5 text-[12px] text-slate-200">
+                      {formatToman(room.basePrice)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-[12px] text-slate-300">
+                      {room.rating !== null ? formatNumber(room.rating, 1) : "—"}
+                    </td>
+                    <td className="num px-3 py-2.5 text-[12px] text-slate-400">
+                      {formatNumber(room.reviewsCount)}
+                    </td>
+                    <td className="num px-3 py-2.5 text-[12px] text-slate-400">
+                      {room.occupancy30 !== null ? formatPercent(room.occupancy30) : "—"}
+                    </td>
+                    <td className="num px-3 py-2.5 text-[12px] text-slate-400">
+                      {formatNumber(room.successBooks)}
                     </td>
                   </tr>
                 );
               })}
-
-              {!filtered.length ? (
-                <tr>
-                  <td colSpan={9} className="px-3 py-12 text-center text-[12px] text-slate-500">
-                    هیچ رقیبی با این فیلترها پیدا نشد.
-                  </td>
-                </tr>
-              ) : null}
             </tbody>
           </table>
         </div>
+
+        {!filtered.length ? (
+          <p className="p-8 text-center text-[12px] text-slate-500">
+            هیچ اقامتگاهی با این فیلترها پیدا نشد.
+          </p>
+        ) : null}
       </div>
 
-      {/* ------------------------------ Match reasons --------------------------- */}
-      <div className="card p-4">
-        <h3 className="mb-3 text-sm font-bold text-slate-100">چرا این‌ها رقیب شما هستند؟</h3>
-        <div className="grid gap-2.5 md:grid-cols-2">
-          {filtered.slice(0, 6).map((competitor) => (
-            <div key={competitor.id} className="rounded-xl bg-white/4 p-3 ring-1 ring-white/6">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-[12px] font-semibold text-slate-100">{competitor.title}</p>
-                <span className="num shrink-0 text-[11px] font-bold text-brand-300">
-                  {formatPercent(competitor.similarity)}
-                </span>
+      {/* -------------------------- Selected detail cards ------------------------ */}
+      {selectedRows.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {selectedRows.map((room) => (
+            <div key={room.id} className="card p-4">
+              <a
+                href={room.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[12px] font-bold text-slate-100 transition hover:text-brand-300"
+              >
+                {room.title}
+              </a>
+              <p className="mt-1 text-[10px] text-slate-500">
+                {room.village} · {room.propertyType}
+              </p>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                <DetailRow label="نرخ پایه" value={formatToman(room.basePrice)} />
+                <DetailRow
+                  label="اختلاف با شما"
+                  value={`${room.basePrice >= owner.basePrice ? "+" : "−"}${formatToman(
+                    Math.abs(room.basePrice - owner.basePrice),
+                  )}`}
+                />
+                <DetailRow
+                  label="امتیاز"
+                  value={room.rating !== null ? formatNumber(room.rating, 1) : "—"}
+                />
+                <DetailRow label="نظرات" value={formatNumber(room.reviewsCount)} />
+                <DetailRow label="ظرفیت" value={`${formatNumber(room.capacity)} نفر`} />
+                <DetailRow label="امکانات" value={formatNumber(room.featuresCount)} />
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {competitor.reasons.length ? (
-                  competitor.reasons.map((reason) => (
-                    <Chip key={reason} tone="brand">
-                      {reason}
-                    </Chip>
-                  ))
-                ) : (
-                  <Chip>شباهت ضعیف — با احتیاط مقایسه کنید</Chip>
-                )}
-              </div>
+
+              {room.features.filter((f) => !owner.features.includes(f)).length ? (
+                <div className="mt-3 border-t border-white/8 pt-2.5">
+                  <p className="mb-1.5 text-[10px] text-slate-500">امکاناتی که شما ندارید</p>
+                  <div className="flex flex-wrap gap-1">
+                    {room.features
+                      .map((code, i) => ({ code, label: room.featureLabels[i] ?? code }))
+                      .filter((f) => !owner.features.includes(f.code))
+                      .slice(0, 6)
+                      .map((f) => (
+                        <Chip key={f.code} tone="warning">
+                          {f.label}
+                        </Chip>
+                      ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -375,23 +442,35 @@ function CompareCell({
   compare: string;
   gap: number | null;
 }) {
+  const tone =
+    gap === null
+      ? "text-slate-400"
+      : gap > 0.05
+        ? "text-emerald-300"
+        : gap < -0.05
+          ? "text-amber-300"
+          : "text-slate-400";
+
   return (
     <div className="rounded-xl bg-white/4 p-3 ring-1 ring-white/6">
       <p className="text-[11px] text-slate-400">{label}</p>
       <p className="num mt-1 text-[15px] font-extrabold text-white">{value}</p>
-      <div className="mt-1 flex items-center gap-1.5">
-        <p className="num text-[10px] text-slate-500">{compare}</p>
-        {gap !== null && Math.abs(gap) >= 0.01 ? (
-          <span
-            className={`num rounded px-1 py-0.5 text-[9px] font-bold ${
-              gap > 0 ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"
-            }`}
-          >
-            {gap > 0 ? "+" : "−"}
-            {formatPercent(Math.abs(gap))}
-          </span>
-        ) : null}
-      </div>
+      <p className="mt-1 text-[10px] text-slate-500">{compare}</p>
+      {gap !== null ? (
+        <p className={`num mt-0.5 text-[10px] font-bold ${tone}`}>
+          {gap >= 0 ? "+" : "−"}
+          {formatPercent(Math.abs(gap))}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] text-slate-500">{label}</p>
+      <p className="num text-[11px] font-semibold text-slate-200">{value}</p>
     </div>
   );
 }

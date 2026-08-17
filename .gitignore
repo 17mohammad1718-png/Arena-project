@@ -40,7 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Private host dataset — never commit real reservation/financial data.
-/data/*
-!/data/README.md
-!/data/templates/
+# The data/ folder holds the real Jajiga dataset, intentionally committed by the
+# owner (see docs/DATA-GUIDE.md). Keep it tracked. Only ignore local scratch files.
+/data/**/*.local.*
+/data/tmp/

@@ -1,4 +1,0 @@
-id,checkIn,checkOut,guests,status,grossAmount,platformFee,discount,refund,note
-r-1,1404/05/01,1404/05/03,4,completed,6400000,704000,0,0,
-r-2,1404/05/08,1404/05/10,2,completed,7300000,803000,0,0,
-r-3,1404/05/15,1404/05/16,5,cancelled,3650000,0,0,2920000,لغو توسط مهمان

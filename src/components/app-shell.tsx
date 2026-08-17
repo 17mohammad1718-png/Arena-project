@@ -13,32 +13,33 @@ import {
   IconInsight,
   IconMarket,
   IconMenu,
+  IconMoney,
+  IconStar,
 } from "./icons";
-import type { DatasetOrigin } from "@/lib/types";
 
 const NAV = [
   { href: "/", label: "نمای کلی", icon: IconDashboard, description: "شاخص‌های عملکرد" },
   { href: "/market", label: "مقایسه بازار", icon: IconMarket, description: "جایگاه قیمتی" },
   { href: "/calendar", label: "تقویم قیمت", icon: IconCalendar, description: "نرخ شبانه" },
   { href: "/competitors", label: "رقبا", icon: IconCompetitors, description: "اقامتگاه‌های مشابه" },
+  { href: "/revenue", label: "درآمد منطقه", icon: IconMoney, description: "رتبه‌بندی رقبا" },
+  { href: "/reviews", label: "نظرات", icon: IconStar, description: "تحلیل بازخورد" },
   { href: "/insights", label: "پیشنهادها", icon: IconInsight, description: "اقدام‌های عملی" },
   { href: "/data", label: "منبع داده", icon: IconData, description: "وضعیت دیتاست" },
 ];
 
-const ORIGIN_BADGE: Record<DatasetOrigin, { label: string; className: string }> = {
-  demo: {
-    label: "داده نمایشی",
-    className: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
-  },
-  mixed: {
-    label: "داده ترکیبی",
-    className: "bg-sky-500/15 text-sky-300 ring-sky-500/30",
-  },
+const ORIGIN_BADGE = {
   real: {
-    label: "داده واقعی",
+    label: "داده واقعی جاجیگا",
     className: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
   },
-};
+  missing: {
+    label: "داده در دسترس نیست",
+    className: "bg-rose-500/15 text-rose-300 ring-rose-500/30",
+  },
+} as const;
+
+export type ShellOrigin = keyof typeof ORIGIN_BADGE;
 
 export function AppShell({
   children,
@@ -49,7 +50,7 @@ export function AppShell({
   children: React.ReactNode;
   propertyTitle: string;
   propertyArea: string;
-  origin: DatasetOrigin;
+  origin: ShellOrigin;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -170,7 +171,7 @@ export function AppShell({
         <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
 
         <footer className="border-t border-white/8 px-4 py-5 text-center text-[11px] text-slate-500 lg:px-8">
-          میزبان‌یار — نسخه اولیه فاز ۱. تمام تخمین‌ها برآوردی هستند و جایگزین قضاوت میزبان نمی‌شوند.
+          میزبان‌یار — داده واقعی جاجیگا. تحلیل‌ها برآوردی هستند و جایگزین قضاوت میزبان نمی‌شوند.
         </footer>
       </div>
     </div>

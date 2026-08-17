@@ -195,6 +195,8 @@ architecture, and [`data/README.md`](../data/README.md) for the import contract.
 
 ### Phase 2 — Real host data
 
+Planned in detail in [`docs/phase-2-plan.md`](phase-2-plan.md).
+
 - Manual reservation entry
 - CSV/Excel import
 - Field mapping and import validation
@@ -203,6 +205,8 @@ architecture, and [`data/README.md`](../data/README.md) for the import contract.
 - Jalali date entry and filtering
 
 ### Phase 3 — Market intelligence
+
+Planned in detail in [`docs/phase-3-plan.md`](phase-3-plan.md).
 
 - Competitor records
 - Saved competitor sets

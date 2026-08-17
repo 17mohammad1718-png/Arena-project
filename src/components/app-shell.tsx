@@ -14,6 +14,7 @@ import {
   IconMarket,
   IconMenu,
   IconMoney,
+  IconPercent,
   IconStar,
 } from "./icons";
 
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/", label: "نمای کلی", icon: IconDashboard, description: "شاخص‌های عملکرد" },
   { href: "/market", label: "مقایسه بازار", icon: IconMarket, description: "جایگاه قیمتی" },
   { href: "/calendar", label: "تقویم قیمت", icon: IconCalendar, description: "نرخ شبانه" },
+  { href: "/finance", label: "مالی من", icon: IconPercent, description: "هزینه و سود واقعی" },
   { href: "/competitors", label: "رقبا", icon: IconCompetitors, description: "اقامتگاه‌های مشابه" },
   { href: "/revenue", label: "درآمد منطقه", icon: IconMoney, description: "رتبه‌بندی رقبا" },
   { href: "/reviews", label: "نظرات", icon: IconStar, description: "تحلیل بازخورد" },

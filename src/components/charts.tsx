@@ -311,13 +311,13 @@ export function PriceComparisonChart({
           }
         />
         <Bar dataKey="weekday" barSize={9} radius={[0, 4, 4, 0]}>
-          {shaped.map((entry) => (
-            <Cell key={`wd-${entry.name}`} fill={entry.isHost ? "#06b6d4" : "#334155"} />
+          {shaped.map((entry, index) => (
+            <Cell key={`wd-${index}`} fill={entry.isHost ? "#06b6d4" : "#334155"} />
           ))}
         </Bar>
         <Bar dataKey="weekend" barSize={9} radius={[0, 4, 4, 0]}>
-          {shaped.map((entry) => (
-            <Cell key={`we-${entry.name}`} fill={entry.isHost ? "#f59e0b" : "#475569"} />
+          {shaped.map((entry, index) => (
+            <Cell key={`we-${index}`} fill={entry.isHost ? "#f59e0b" : "#475569"} />
           ))}
         </Bar>
       </BarChart>

@@ -44,3 +44,6 @@ next-env.d.ts
 # owner (see docs/DATA-GUIDE.md). Keep it tracked. Only ignore local scratch files.
 /data/**/*.local.*
 /data/tmp/
+
+# Host-owned local database and backups (see docs/phase-2-plan.md)
+/var/

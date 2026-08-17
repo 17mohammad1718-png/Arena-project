@@ -1,4 +1,4 @@
-# EghamatYar (اقامت‌یار) — Product Plan
+# MizbanYar (میزبان‌یار) — Product Plan
 
 ## Vision
 
@@ -6,7 +6,7 @@ Build a Persian, RTL analytics dashboard for short-term rental hosts on Jajiga. 
 
 ## The problem
 
-Jajiga's host tools already provide operational statistics such as views, reservations, and sales. EghamatYar should not simply recreate those reports. Its differentiator will be answering questions such as:
+Jajiga's host tools already provide operational statistics such as views, reservations, and sales. MizbanYar should not simply recreate those reports. Its differentiator will be answering questions such as:
 
 - How is my residence performing over time?
 - Is my nightly price competitive?
@@ -178,16 +178,20 @@ Until a compliant real market-data source is established, use realistic fictiona
 
 ## Delivery phases
 
-### Phase 1 — Interactive prototype
+### Phase 1 — Interactive prototype ✅ Delivered
 
-- Persian RTL application shell
-- Responsive desktop and mobile layout
-- Owner property profile
-- Overview KPI cards and charts
-- Competitor comparison
-- Pricing-calendar preview
-- Realistic fictional Babolkenar dataset
-- Clear demo-data labeling
+- ✅ Persian RTL application shell with Vazirmatn typography
+- ✅ Responsive desktop and mobile layout
+- ✅ Owner property profile
+- ✅ Overview KPI cards and charts (revenue, net profit, occupancy, ADR, RevPAN, cancellation, conversion)
+- ✅ Competitor comparison with an explainable similarity score
+- ✅ Jalali pricing calendar with holidays, demand seasons and suggested price bands
+- ✅ Realistic fictional Babolkenar dataset (deterministic, seeded)
+- ✅ Clear demo-data labeling on every page
+- ✅ Automatic real-dataset loader with validation and per-entity source reporting
+
+Phase 1 is implemented in this repository. See the [README](../README.md) for the page map and
+architecture, and [`data/README.md`](../data/README.md) for the import contract.
 
 ### Phase 2 — Real host data
 
@@ -265,6 +269,32 @@ Real data is optional for the first prototype. When available, the following wil
 
 If the host does not want to share this information yet, development can proceed entirely with editable fictional data.
 
+## Data ingestion contract (implemented)
+
+The loader in `src/lib/load-dataset.ts` scans `data/` and swaps demo values for real records
+per entity. This means the host can migrate to real data incrementally instead of all at once.
+
+| Entity | File | Required columns |
+|---|---|---|
+| Property | `property.csv` | `title`, `capacity`, `basePrice` |
+| Reservations | `reservations.csv` | `checkIn`, `checkOut` or `nights`, `grossAmount` |
+| Blocked nights | `blocked.csv` | `date` |
+| Expenses | `expenses.csv` | `date`, `amount` |
+| Daily prices | `prices.csv` | `date`, `price` |
+| Views | `views.csv` | `date`, `views` |
+| Competitors | `competitors.csv` | `title`, `weekdayPrice` |
+
+Jalali and Gregorian dates, Persian digits, Persian column names, thousands separators and the
+word «تومان» are all normalized on import. Rows that fail validation are skipped and surfaced on
+the «منبع داده» page rather than silently dropped.
+
 ## Immediate next step
 
-Create the Phase 1 application shell and dashboard using fictional Babolkenar data, then review the design and metrics together before connecting real host data.
+The real Babolkenar dataset is being prepared by the host. Once it lands in `data/`:
+
+1. Review the «منبع داده» page for validation warnings and fix any column mismatches.
+2. Re-check whether the metric definitions match how the host actually reasons about the
+   business (especially blocked nights, refunds and fee handling).
+3. Recalibrate the pricing suggestion band against real competitor prices instead of the
+   demo baseline.
+4. Then start Phase 2 — in-app reservation entry, UI-driven file upload and persistent storage.

@@ -195,6 +195,8 @@ architecture, and [`data/README.md`](../data/README.md) for the import contract.
 
 ### Phase 2 — Real host data
 
+Planned in detail in [`docs/phase-2-plan.md`](phase-2-plan.md).
+
 - Manual reservation entry
 - CSV/Excel import
 - Field mapping and import validation

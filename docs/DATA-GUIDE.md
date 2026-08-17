@@ -149,6 +149,13 @@ python scripts/aggregate_jajiga_dataset.py && python scripts/verify_aggregation.
 
 To add a new competitor room to the radar: `python scripts/radar_bulk_add.py <id1> <id2> ...`
 
+**Bringing the fresh data into this repo:** after the pipeline refreshed
+`jajiga-tracker`, run `npm run sync` here (copies the targets defined in
+`scripts/sync-data.ts` from the tracker project root into `data/` and archives
+automatically; `npm run sync -- --dry-run` previews first, `--source <dir>` or
+`JAJIGA_TRACKER_ROOT` overrides the default sibling path). The script never
+touches `var/`, the host-owned database.
+
 ## 8. Owner's cabin quick facts (3297585, کلبه سوئیسی سیدکلا)
 
 - Type: Swiss wooden cottage, 100 m² building / 200 m² grounds, 1 bedroom

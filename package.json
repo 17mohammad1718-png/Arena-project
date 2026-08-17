@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "db:export": "tsx scripts/db-export.ts",
     "db:import": "tsx scripts/db-import.ts",
-    "archive": "tsx scripts/archive.ts"
+    "archive": "tsx scripts/archive.ts",
+    "sync": "tsx scripts/sync-data.ts"
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",

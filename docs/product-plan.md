@@ -193,30 +193,32 @@ Until a compliant real market-data source is established, use realistic fictiona
 Phase 1 is implemented in this repository. See the [README](../README.md) for the page map and
 architecture, and [`data/README.md`](../data/README.md) for the import contract.
 
-### Phase 2 — Real host data
+### Phase 2 — Real host data ✅ Delivered
 
 Planned in detail in [`docs/phase-2-plan.md`](phase-2-plan.md).
 
-- Manual reservation entry
-- CSV/Excel import
-- Field mapping and import validation
-- Revenue and occupancy calculations
-- Expense and net-profit reporting
-- Jalali date entry and filtering
+- ✅ Manual reservation entry
+- ✅ CSV/Excel import
+- ✅ Field mapping and import validation
+- ✅ Revenue and occupancy calculations
+- ✅ Expense and net-profit reporting
+- ✅ Jalali date entry and filtering
 
-### Phase 3 — Market intelligence
+### Phase 3 — Market intelligence ✅ Delivered
 
 Planned in detail in [`docs/phase-3-plan.md`](phase-3-plan.md).
 
-- Competitor records
-- Saved competitor sets
-- Price history
-- Geographic and property filters
-- Benchmarking
-- Rule-based Persian recommendations
-- Compliant market-data ingestion
+- ✅ Competitor records
+- ✅ Saved competitor sets
+- ✅ Price history
+- ✅ Geographic and property filters
+- ✅ Benchmarking
+- ✅ Rule-based Persian recommendations
+- ✅ Compliant market-data ingestion
 
-### Phase 4 — Advanced analytics
+### Phase 4 — Advanced analytics 🚧 Planned
+
+Planned in detail in [`docs/phase-4-plan.md`](phase-4-plan.md).
 
 - Iranian holiday and seasonal-demand analysis
 - Weather correlation

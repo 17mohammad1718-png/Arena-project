@@ -1,5 +1,10 @@
+import Link from "next/link";
+
 import { PositioningChart, PriceComparisonChart, RatingRadar } from "@/components/charts";
 import { Card, Chip, DefinitionList, KpiCard, Meter, Notice, PageHeader } from "@/components/ui";
+import { getDb } from "@/lib/db";
+import { listSets } from "@/lib/db/market";
+import { computeMarketPosition } from "@/lib/jajiga/analytics";
 import { getDataset } from "@/lib/jajiga/dataset";
 import { formatNumber, formatPercent, formatToman } from "@/lib/metrics";
 
@@ -7,13 +12,31 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "مقایسه بازار" };
 
-export default function MarketPage() {
+export default async function MarketPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ set?: string }>;
+}) {
+  const params = await searchParams;
   const data = getDataset();
-  const { owner, market, peers } = data;
+  const { owner } = data;
 
   if (data.isEmpty) {
     return <Notice tone="warning">داده‌ای برای تحلیل بازار موجود نیست.</Notice>;
   }
+
+  // N1: the benchmark reference group is switchable — default automatic peers,
+  // or any saved competitor set picked via ?set=<id>.
+  const sets = listSets(getDb());
+  const activeSetId = Number(params.set) || null;
+  const activeSet = activeSetId ? (sets.find((s) => s.id === activeSetId) ?? null) : null;
+  const setRooms = activeSet
+    ? data.competitors.filter((room) => activeSet.roomIds.includes(room.id))
+    : null;
+
+  const peers = setRooms?.length ? setRooms : data.peers;
+  const market =
+    setRooms?.length ? computeMarketPosition(owner, setRooms) : data.market;
 
   const priceGap = market.medianPrice
     ? (owner.basePrice - market.medianPrice) / market.medianPrice
@@ -69,10 +92,45 @@ export default function MarketPage() {
     <div className="space-y-6">
       <PageHeader
         title="مقایسه با بازار محلی"
-        description={`جایگاه «${owner.title}» در برابر ${formatNumber(
-          peers.length,
-        )} اقامتگاه واقعاً مشابه، انتخاب‌شده بر پایه ظرفیت، اتاق، فاصله جغرافیایی، نوع اقامتگاه و امکانات.`}
+        description={
+          activeSet
+            ? `جایگاه «${owner.title}» در برابر مجموعه ذخیره‌شده «${activeSet.name}» (${formatNumber(
+                peers.length,
+              )} اقامتگاه).`
+            : `جایگاه «${owner.title}» در برابر ${formatNumber(
+                peers.length,
+              )} اقامتگاه واقعاً مشابه، انتخاب‌شده بر پایه ظرفیت، اتاق، فاصله جغرافیایی، نوع اقامتگاه و امکانات.`
+        }
       />
+
+      {sets.length ? (
+        <div className="no-print flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold text-slate-400">گروه مرجع:</span>
+          <Link
+            href="/market"
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-bold ring-1 transition ${
+              !activeSet
+                ? "bg-brand-500/20 text-brand-200 ring-brand-400/40"
+                : "bg-white/5 text-slate-300 ring-white/10 hover:bg-white/8"
+            }`}
+          >
+            انتخاب خودکار ({formatNumber(data.peers.length)})
+          </Link>
+          {sets.map((set) => (
+            <Link
+              key={set.id}
+              href={`/market?set=${set.id}`}
+              className={`rounded-lg px-3 py-1.5 text-[11px] font-bold ring-1 transition ${
+                activeSet?.id === set.id
+                  ? "bg-brand-500/20 text-brand-200 ring-brand-400/40"
+                  : "bg-white/5 text-slate-300 ring-white/10 hover:bg-white/8"
+              }`}
+            >
+              {set.name} ({formatNumber(set.roomIds.length)})
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
       <Notice>
         قیمت‌ها نرخ پایه («نرخ هر شب از») هستند، نه قیمت تخفیف‌خورده لحظه‌ای. امتیاز نمایش‌داده‌شده

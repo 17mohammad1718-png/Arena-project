@@ -83,6 +83,36 @@ const MIGRATIONS: string[] = [
     value TEXT NOT NULL
   );
   `,
+  // 002 — phase 3 market-intelligence tables (see docs/phase-3-plan.md)
+  `
+  CREATE TABLE IF NOT EXISTS competitor_sets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS competitor_set_rooms (
+    set_id  INTEGER NOT NULL REFERENCES competitor_sets(id) ON DELETE CASCADE,
+    room_id INTEGER NOT NULL,
+    PRIMARY KEY (set_id, room_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS competitor_notes (
+    room_id    INTEGER PRIMARY KEY,
+    note       TEXT NOT NULL DEFAULT '',
+    label      TEXT,                        -- 'watch' | 'neighbor' | 'benchmark' | NULL
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS alert_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    rule_key TEXT NOT NULL,
+    fired_on TEXT NOT NULL,                 -- ISO day the alert fired
+    payload  TEXT NOT NULL DEFAULT '{}',
+    dismissed INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(rule_key, fired_on)
+  );
+  `,
 ];
 
 let db: Database.Database | null = null;

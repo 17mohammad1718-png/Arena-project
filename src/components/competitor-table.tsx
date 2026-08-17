@@ -1,9 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { Chip } from "./ui";
 import type { CompetitorMatch } from "@/lib/jajiga/analytics";
+import type { CompetitorNote, CompetitorSet } from "@/lib/db/market";
+import { NOTE_LABEL_FA } from "@/lib/db/market";
 import type { RoomProfile } from "@/lib/jajiga/load";
 import { formatNumber, formatPercent, formatToman, median } from "@/lib/metrics";
 
@@ -29,10 +33,15 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 export function CompetitorTable({
   competitors,
   owner,
+  sets = [],
+  notes = [],
 }: {
   competitors: CompetitorMatch[];
   owner: RoomProfile;
+  sets?: CompetitorSet[];
+  notes?: CompetitorNote[];
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [village, setVillage] = useState("all");
   const [minCapacity, setMinCapacity] = useState(0);
@@ -41,6 +50,41 @@ export function CompetitorTable({
   const [sort, setSort] = useState<SortKey>("similarity");
   const [descending, setDescending] = useState(true);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [setName, setSetName] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const noteByRoom = useMemo(() => new Map(notes.map((n) => [n.roomId, n])), [notes]);
+
+  async function saveSet() {
+    if (!selected.size) return;
+    const name = setName.trim();
+    if (!name) return setSaveError("نام مجموعه را بنویسید");
+    setSaveBusy(true);
+    setSaveError(null);
+    const response = await fetch("/api/competitor-sets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, roomIds: [...selected] }),
+    });
+    setSaveBusy(false);
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      return setSaveError(body?.error ?? "ذخیره ناموفق بود");
+    }
+    setSetName("");
+    router.refresh();
+  }
+
+  async function removeSet(id: number) {
+    await fetch(`/api/competitor-sets?id=${id}`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  function loadSet(set: CompetitorSet) {
+    setSelected(new Set(set.roomIds));
+    setOnlySimilar(false);
+  }
 
   const villages = useMemo(
     () => [...new Set(competitors.map((c) => c.village))].filter(Boolean).sort(),
@@ -201,6 +245,62 @@ export function CompetitorTable({
             </button>
           ) : null}
         </div>
+
+        {/* --------------------------- Saved sets (N1) --------------------------- */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/8 pt-3">
+          {sets.map((set) => (
+            <span
+              key={set.id}
+              className="inline-flex items-center gap-1 rounded-lg bg-white/5 py-1 pr-2.5 pl-1 text-[11px] ring-1 ring-white/10"
+            >
+              <button
+                type="button"
+                onClick={() => loadSet(set)}
+                className="font-bold text-slate-200 transition hover:text-brand-300"
+                title={`بارگذاری ${formatNumber(set.roomIds.length)} اقامتگاه این مجموعه`}
+              >
+                {set.name}
+                <span className="num mr-1 text-[10px] text-slate-500">
+                  ({formatNumber(set.roomIds.length)})
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => removeSet(set.id)}
+                className="rounded px-1 text-slate-500 transition hover:bg-rose-500/15 hover:text-rose-300"
+                aria-label={`حذف مجموعه ${set.name}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+
+          {selected.size ? (
+            <span className="inline-flex items-center gap-1.5">
+              <input
+                value={setName}
+                onChange={(e) => setSetName(e.target.value)}
+                placeholder="نام مجموعه، مثلاً همسایه‌های سیدکلا"
+                className="w-52 rounded-lg border border-white/10 bg-ink-850 px-2.5 py-1.5 text-[11px] text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand-400/50"
+              />
+              <button
+                type="button"
+                onClick={saveSet}
+                disabled={saveBusy}
+                className="rounded-lg bg-brand-500/90 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-brand-500 disabled:opacity-50"
+              >
+                ذخیره انتخاب ({formatNumber(selected.size)})
+              </button>
+            </span>
+          ) : sets.length === 0 ? (
+            <p className="text-[11px] text-slate-500">
+              چند اقامتگاه را تیک بزنید و به‌عنوان مجموعه نام‌دار ذخیره کنید تا بعد از رفرش هم بماند.
+            </p>
+          ) : null}
+          {saveError ? (
+            <p className="text-[11px] font-bold text-rose-300">{saveError}</p>
+          ) : null}
+        </div>
       </div>
 
       {/* ------------------------------ Comparison ------------------------------ */}
@@ -304,17 +404,20 @@ export function CompetitorTable({
                       />
                     </td>
                     <td className="px-3 py-2.5">
-                      <a
-                        href={room.url}
-                        target="_blank"
-                        rel="noreferrer"
+                      <Link
+                        href={`/competitors/${room.id}`}
                         className="block max-w-[280px] truncate text-[12px] font-medium text-slate-200 transition hover:text-brand-300"
-                        title={room.title}
+                        title={`${room.title} — پرونده رقیب`}
                       >
                         {room.title}
-                      </a>
+                      </Link>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         <span className="text-[10px] text-slate-500">{room.village}</span>
+                        {noteByRoom.get(room.id)?.label ? (
+                          <span className="rounded bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold text-brand-300">
+                            {NOTE_LABEL_FA[noteByRoom.get(room.id)!.label!]}
+                          </span>
+                        ) : null}
                         {room.reasons.slice(0, 2).map((reason) => (
                           <span
                             key={reason}

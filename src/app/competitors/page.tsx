@@ -1,5 +1,7 @@
 import { CompetitorTable } from "@/components/competitor-table";
 import { Notice, PageHeader } from "@/components/ui";
+import { getDb } from "@/lib/db";
+import { getNotes, listSets } from "@/lib/db/market";
 import { getDataset } from "@/lib/jajiga/dataset";
 import { formatNumber } from "@/lib/metrics";
 
@@ -13,6 +15,10 @@ export default function CompetitorsPage() {
   if (data.isEmpty) {
     return <Notice tone="warning">فهرست رقبا در دسترس نیست.</Notice>;
   }
+
+  const db = getDb();
+  const sets = listSets(db);
+  const notes = [...getNotes(db).values()];
 
   return (
     <div className="space-y-6">
@@ -29,7 +35,12 @@ export default function CompetitorsPage() {
         انتخاب آن رقیب را نشان می‌دهند. نرخ‌ها «نرخ پایه از» هستند.
       </Notice>
 
-      <CompetitorTable competitors={data.competitors} owner={data.owner} />
+      <CompetitorTable
+        competitors={data.competitors}
+        owner={data.owner}
+        sets={sets}
+        notes={notes}
+      />
     </div>
   );
 }

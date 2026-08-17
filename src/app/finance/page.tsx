@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { ExpenseForm, ExpenseList, RecurringManager } from "@/components/finance-forms";
+import { ImportWizard } from "@/components/import-wizard";
 import { MonthNav } from "@/components/month-nav";
 import { Card, KpiCard, Notice, PageHeader } from "@/components/ui";
 import {
@@ -156,6 +157,13 @@ export default async function FinancePage({
         subtitle="هر ماه خودکار در همان روز ثبت می‌شوند؛ با غیرفعال‌کردن، از ماه‌های بعد ثبت نمی‌شوند."
       >
         <RecurringManager recurrings={recurrings} />
+      </Card>
+
+      <Card
+        title="ایمپورت از فایل CSV"
+        subtitle="رزروها، هزینه‌ها یا شب‌های بسته را یک‌جا وارد کنید — اول پیش‌نمایش، بعد ثبت نهایی."
+      >
+        <ImportWizard />
       </Card>
     </div>
   );

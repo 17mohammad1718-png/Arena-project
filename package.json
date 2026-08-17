@@ -12,7 +12,8 @@
     "db:export": "tsx scripts/db-export.ts",
     "db:import": "tsx scripts/db-import.ts",
     "archive": "tsx scripts/archive.ts",
-    "sync": "tsx scripts/sync-data.ts"
+    "sync": "tsx scripts/sync-data.ts",
+    "import:bookings": "tsx scripts/import-bookings.ts"
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.3.0",

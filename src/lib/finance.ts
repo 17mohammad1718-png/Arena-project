@@ -3,7 +3,7 @@ import type { ExpenseRow, ReservationRow } from "./db/schemas";
 import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABEL } from "./db/schemas";
 import { nightsBetween } from "./dates";
 
-export const COMMISSION_RATE = 0.12;
+export const COMMISSION_RATE = 0.16;
 
 /**
  * True-profit math for one period: revenue comes from the radar calendar

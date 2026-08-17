@@ -288,11 +288,39 @@ function runArchive(): { realized: number; radar: number; captures: number } {
   return { realized: realizedAdded, radar: priceAdded, captures: countPriceCaptures(db) };
 }
 
+/* --------------------------- chalet bookings sync ------------------------- */
+
+/**
+ * The chalet-dashboard export (real booking history) lives in a separate
+ * project folder. Override with CHALET_ROOT env var.
+ */
+const CHALET_ROOT = path.resolve(
+  process.env.CHALET_ROOT ?? "H:/hermes outputs/chalet-project",
+);
+
+function syncChaletExport(): string | null {
+  const src = path.join(CHALET_ROOT, "chalet-bookings-latest.json");
+  const dst = path.join(DEST, "chalet-bookings-latest.json");
+  if (!existsSync(src)) return null;
+  if (existsSync(dst) && hashFile(src) === hashFile(dst)) return "unchanged";
+  if (opts.dryRun) return "would-copy";
+  copyFileSync(src, dst);
+  return "copied";
+}
+
 /* ---------------------------------- main ---------------------------------- */
 
 function main(): void {
   if (!opts.quiet) console.log(`tracker root: ${TRACKER_ROOT}`);
   if (opts.dryRun) console.log("dry-run: no files will be changed");
+
+  // Chalet-dashboard booking export (separate source, single file).
+  const chaletStatus = syncChaletExport();
+  if (!opts.quiet) {
+    if (chaletStatus === null) console.log("chalet export: not found (CHALET_ROOT missing)");
+    else if (chaletStatus === "copied") console.log("chalet export: copied chalet-bookings-latest.json");
+    else if (chaletStatus === "would-copy") console.log("chalet export: would copy chalet-bookings-latest.json");
+  }
 
   const { diff, missing } = collectDiff();
 

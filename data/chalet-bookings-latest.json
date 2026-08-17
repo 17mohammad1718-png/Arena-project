@@ -1,0 +1,514 @@
+{
+  "version": 2,
+  "exportedAt": "2026-08-17T07:55:10.494Z",
+  "bookings": [
+    {
+      "name": "چهاردولی",
+      "durationRaw": "2",
+      "guestsRaw": "2",
+      "netPrice": 4550000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/06/05",
+      "weekday": "پنجشنبه و جمعه",
+      "id": 26,
+      "realNights": 2,
+      "grossPrice": 5416667,
+      "commission": 866667,
+      "adr": 2708334,
+      "month": "شهریور",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 1,
+      "name": "زینب کاظمی صدر",
+      "durationRaw": "2",
+      "guestsRaw": "4",
+      "netPrice": 5000000,
+      "referrer": "پورحسین",
+      "checkInDate": "1405/01/25",
+      "weekday": "سه شنبه و چهارشنبه",
+      "realNights": 2,
+      "grossPrice": 5000000,
+      "commission": 0,
+      "adr": 2500000,
+      "month": "فروردین",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 2,
+      "name": "سید عباس حسین نژاد",
+      "durationRaw": "12ساعته",
+      "guestsRaw": "2",
+      "netPrice": 1800000,
+      "referrer": "شیپور",
+      "checkInDate": "1405/01/28",
+      "weekday": "جمعه",
+      "realNights": 1,
+      "grossPrice": 1800000,
+      "commission": 0,
+      "adr": 1800000,
+      "month": "فروردین",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 3,
+      "name": "کیهان کریم پور",
+      "durationRaw": "1",
+      "guestsRaw": "5",
+      "netPrice": 2000000,
+      "referrer": "شیپور",
+      "checkInDate": "1405/02/03",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2000000,
+      "commission": 0,
+      "adr": 2000000,
+      "month": "اردیبهشت",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 4,
+      "name": "حامد کوچک ارمکی",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 1785000,
+      "referrer": "اتاقک",
+      "checkInDate": "1405/02/10",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2203704,
+      "commission": 418704,
+      "adr": 2203704,
+      "month": "اردیبهشت",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 5,
+      "name": "سجاد میانگلی",
+      "durationRaw": "6ساعته",
+      "guestsRaw": "2",
+      "netPrice": 2000000,
+      "referrer": "شیپور",
+      "checkInDate": "1405/02/11",
+      "weekday": "جمعه",
+      "realNights": 1,
+      "grossPrice": 2000000,
+      "commission": 0,
+      "adr": 2000000,
+      "month": "اردیبهشت",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 6,
+      "name": "سعید اصغری",
+      "durationRaw": "1",
+      "guestsRaw": "4",
+      "netPrice": 3000000,
+      "referrer": "بهنام",
+      "checkInDate": "1405/02/15",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 3000000,
+      "commission": 0,
+      "adr": 3000000,
+      "month": "اردیبهشت",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 7,
+      "name": "سعید حاجی تبار",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 2000000,
+      "referrer": "شکری(کافه)",
+      "checkInDate": "1405/02/16",
+      "weekday": "چهارشنبه",
+      "realNights": 1,
+      "grossPrice": 2000000,
+      "commission": 0,
+      "adr": 2000000,
+      "month": "اردیبهشت",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 8,
+      "name": "مسعود جانقلی",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 2125000,
+      "referrer": "اتاقک",
+      "checkInDate": "1405/02/17",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2623457,
+      "commission": 498457,
+      "adr": 2623457,
+      "month": "اردیبهشت",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 9,
+      "name": "مهریزی",
+      "durationRaw": "4",
+      "guestsRaw": "3",
+      "netPrice": 8000000,
+      "referrer": "پورحسین",
+      "checkInDate": "1405/02/22",
+      "weekday": "سه شنبه تا جمعه",
+      "realNights": 4,
+      "grossPrice": 8000000,
+      "commission": 0,
+      "adr": 2000000,
+      "month": "اردیبهشت",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 10,
+      "name": "سجاد میانگلی",
+      "durationRaw": "6ساعته",
+      "guestsRaw": "4",
+      "netPrice": 2000000,
+      "referrer": "شیپور",
+      "checkInDate": "1405/02/26",
+      "weekday": "شنبه",
+      "realNights": 1,
+      "grossPrice": 2000000,
+      "commission": 0,
+      "adr": 2000000,
+      "month": "اردیبهشت",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 11,
+      "name": "خانم رحمانی",
+      "durationRaw": "2",
+      "guestsRaw": "2",
+      "netPrice": 4000000,
+      "referrer": "شب",
+      "checkInDate": "1405/02/30",
+      "weekday": "چهارشنبه و پنجشنبه",
+      "realNights": 2,
+      "grossPrice": 4651163,
+      "commission": 651163,
+      "adr": 2325582,
+      "month": "اردیبهشت",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 12,
+      "name": "نامشخص",
+      "durationRaw": "2",
+      "guestsRaw": "5",
+      "netPrice": 6000000,
+      "referrer": "بهنام",
+      "checkInDate": "1405/03/06",
+      "weekday": "چهارشنبه و پنجشنبه",
+      "realNights": 2,
+      "grossPrice": 6000000,
+      "commission": 0,
+      "adr": 3000000,
+      "month": "خرداد",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 13,
+      "name": "محمد مجیدی نسب",
+      "durationRaw": "3",
+      "guestsRaw": "2",
+      "netPrice": 6346000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/03/12",
+      "weekday": "سه شنبه تا جمعه",
+      "realNights": 3,
+      "grossPrice": 7554762,
+      "commission": 1208762,
+      "adr": 2518254,
+      "month": "خرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 14,
+      "name": "جواد قلی پور",
+      "durationRaw": "1",
+      "guestsRaw": "4+1",
+      "netPrice": 2179000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/03/21",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2594048,
+      "commission": 415048,
+      "adr": 2594048,
+      "month": "خرداد",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 15,
+      "name": "امیرحسین بیگ زاده سامیان",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 2179000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/03/28",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2594048,
+      "commission": 415048,
+      "adr": 2594048,
+      "month": "خرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 16,
+      "name": "امیررضا قدیری پزوه",
+      "durationRaw": "2",
+      "guestsRaw": "4",
+      "netPrice": 8517000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/04/03",
+      "weekday": "چهارشنبه و پنجشنبه",
+      "realNights": 2,
+      "grossPrice": 10139286,
+      "commission": 1622286,
+      "adr": 5069643,
+      "month": "تیر",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "name": "عباس ابراهیمی",
+      "durationRaw": "3",
+      "guestsRaw": "2",
+      "netPrice": 12250000,
+      "referrer": "جاباما",
+      "checkInDate": "1405/04/12",
+      "weekday": "جمعه، شنبه، یکشنبه",
+      "id": 17,
+      "realNights": 3,
+      "grossPrice": 14583333,
+      "commission": 2333333,
+      "adr": 4861111,
+      "month": "تیر",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 18,
+      "name": "الینا صالحه",
+      "durationRaw": "1",
+      "guestsRaw": "5",
+      "netPrice": 2700000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/01",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 3214286,
+      "commission": 514286,
+      "adr": 3214286,
+      "month": "مرداد",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 19,
+      "name": "پویا ابراهیم پور",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 2400000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/08",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 2857143,
+      "commission": 457143,
+      "adr": 2857143,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 20,
+      "name": "علی ساکی",
+      "durationRaw": "2",
+      "guestsRaw": "2",
+      "netPrice": 3200000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/16",
+      "weekday": "جمعه و شنبه",
+      "realNights": 2,
+      "grossPrice": 3809524,
+      "commission": 609524,
+      "adr": 1904762,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 21,
+      "name": "فربد فلاح",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 1550000,
+      "referrer": "جاباما",
+      "checkInDate": "1405/05/19",
+      "weekday": "دوشنبه",
+      "realNights": 1,
+      "grossPrice": 1845238,
+      "commission": 295238,
+      "adr": 1845238,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 22,
+      "name": "کشت گر",
+      "durationRaw": "1",
+      "guestsRaw": "6",
+      "netPrice": 2800000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/20",
+      "weekday": "سه شنبه",
+      "realNights": 1,
+      "grossPrice": 3333333,
+      "commission": 533333,
+      "adr": 3333333,
+      "month": "مرداد",
+      "customerProfile": "خانواده / گروه"
+    },
+    {
+      "id": 23,
+      "name": "عماد کامیابی",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 3250000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/21",
+      "weekday": "چهارشنبه",
+      "realNights": 1,
+      "grossPrice": 3869048,
+      "commission": 619048,
+      "adr": 3869048,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 24,
+      "name": "محمدی مومنی عنبران",
+      "durationRaw": "1",
+      "guestsRaw": "2",
+      "netPrice": 3250000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/22",
+      "weekday": "پنجشنبه",
+      "realNights": 1,
+      "grossPrice": 3869048,
+      "commission": 619048,
+      "adr": 3869048,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    },
+    {
+      "id": 25,
+      "name": "علیرضا قربانیان",
+      "durationRaw": "2",
+      "guestsRaw": "2",
+      "netPrice": 3200000,
+      "referrer": "جاجیگا",
+      "checkInDate": "1405/05/23",
+      "weekday": "جمعه و شنبه",
+      "realNights": 2,
+      "grossPrice": 3809524,
+      "commission": 609524,
+      "adr": 1904762,
+      "month": "مرداد",
+      "customerProfile": "زوج جوان"
+    }
+  ],
+  "costs": {
+    "weeks": 10,
+    "waterCostPerWeek": 0,
+    "sheypoorCostPerWeek": 0,
+    "cleaningCost": 0
+  },
+  "meta": {
+    "مهریزی": {
+      "city": "قم",
+      "notes": ""
+    },
+    "زینب کاظمی صدر": {
+      "city": "قم",
+      "notes": ""
+    },
+    "سجاد میانگلی": {
+      "city": "بابل",
+      "notes": ""
+    },
+    "خانم رحمانی": {
+      "city": "تهران",
+      "notes": ""
+    },
+    "محمدی مومنی عنبران": {
+      "city": "مشهد",
+      "notes": ""
+    },
+    "عماد کامیابی": {
+      "city": "مشهد",
+      "notes": ""
+    },
+    "علی ساکی": {
+      "city": "بروجرد",
+      "notes": ""
+    },
+    "کشت گر": {
+      "city": "مشهد",
+      "notes": ""
+    },
+    "سعید اصغری": {
+      "city": "مشهد",
+      "notes": ""
+    },
+    "علیرضا قربانیان": {
+      "city": "بابل",
+      "notes": ""
+    },
+    "کیهان کریم پور": {
+      "city": "آمل",
+      "notes": ""
+    },
+    "حامد کوچک ارمکی": {
+      "city": "بابل",
+      "notes": ""
+    },
+    "امیرحسین بیگ زاده سامیان": {
+      "city": "تهران",
+      "notes": ""
+    },
+    "محمد مجیدی نسب": {
+      "city": "مشهد",
+      "notes": ""
+    },
+    "نامشخص": {
+      "city": "تهران",
+      "notes": ""
+    },
+    "امیررضا قدیری پزوه": {
+      "city": "اصفهان",
+      "notes": ""
+    },
+    "سید عباس حسین نژاد": {
+      "city": "بابل",
+      "notes": ""
+    },
+    "مسعود جانقلی": {
+      "city": "تهران",
+      "notes": ""
+    },
+    "سعید حاجی تبار": {
+      "city": "بابل",
+      "notes": ""
+    },
+    "عباس ابراهیمی": {
+      "city": "تهران",
+      "notes": ""
+    },
+    "الینا صالحه": {
+      "city": "تهران",
+      "notes": ""
+    }
+  }
+}

@@ -113,6 +113,25 @@ const MIGRATIONS: string[] = [
     UNIQUE(rule_key, fired_on)
   );
   `,
+  // 003 — real booking history imported from chalet-dashboard export
+  `
+  CREATE TABLE IF NOT EXISTS bookings_history (
+    id            INTEGER PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    channel       TEXT NOT NULL,
+    net_amount    INTEGER NOT NULL,
+    gross_amount  INTEGER NOT NULL,
+    commission    INTEGER NOT NULL,
+    check_in      TEXT NOT NULL,             -- ISO Gregorian
+    nights        INTEGER NOT NULL,
+    guests        INTEGER,
+    is_hourly     INTEGER NOT NULL DEFAULT 0,
+    customer_city TEXT NOT NULL DEFAULT '',
+    notes         TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_bookings_history_checkin ON bookings_history(check_in);
+  `,
 ];
 
 let db: Database.Database | null = null;

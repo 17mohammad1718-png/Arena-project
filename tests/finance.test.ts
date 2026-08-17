@@ -96,7 +96,7 @@ test("nights outside the requested window are ignored", () => {
   );
 });
 
-test("real profit = gross − 12٪ commission − expenses, with category breakdown", () => {
+test("real profit = gross − 16٪ commission − expenses, with category breakdown", () => {
   const revenue = mergeRevenueNights(
     [night("2026-09-01", "booked", 5_000_000), night("2026-09-02", "booked", 5_000_000)],
     [],
@@ -109,12 +109,12 @@ test("real profit = gross − 12٪ commission − expenses, with category breakd
   ]);
 
   assert.equal(profit.grossRevenue, 10_000_000);
-  assert.equal(profit.commission, 1_200_000);
-  assert.equal(profit.netRevenue, 8_800_000);
+  assert.equal(profit.commission, 1_600_000);
+  assert.equal(profit.netRevenue, 8_400_000);
   assert.equal(profit.totalExpenses, 1_000_000);
-  assert.equal(profit.realProfit, 7_800_000);
+  assert.equal(profit.realProfit, 7_400_000);
   assert.equal(profit.soldNights, 2);
-  assert.equal(profit.profitPerSoldNight, 3_900_000);
+  assert.equal(profit.profitPerSoldNight, 3_700_000);
 
   assert.equal(profit.byCategory.length, 2);
   assert.equal(profit.byCategory[0].category, "cleaning");

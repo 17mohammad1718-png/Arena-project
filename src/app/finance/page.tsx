@@ -83,7 +83,7 @@ export default async function FinancePage({
           }`}
         />
         <KpiCard
-          label="کمیسیون جاجیگا (۱۲٪)"
+          label="کمیسیون جاجیگا (۱۶٪)"
           value={formatToman(profit.commission)}
           hint={`درآمد خالص ${formatToman(profit.netRevenue)}`}
         />

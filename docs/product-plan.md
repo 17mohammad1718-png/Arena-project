@@ -206,6 +206,8 @@ Planned in detail in [`docs/phase-2-plan.md`](phase-2-plan.md).
 
 ### Phase 3 — Market intelligence
 
+Planned in detail in [`docs/phase-3-plan.md`](phase-3-plan.md).
+
 - Competitor records
 - Saved competitor sets
 - Price history
